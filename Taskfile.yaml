@@ -1,0 +1,68 @@
+version: "3"
+
+vars:
+    MODULES: . app/openapi bus/nats enjintest examples filestore/minio google mail/ses
+    GOVULNCHECK: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+tasks:
+    work:
+        desc: Create go.work with every module of the repository
+        cmds:
+            - sh scripts/work.sh
+
+    templ:
+        cmds:
+            - templ generate -path .
+
+    lint:
+        desc: Run golangci-lint in every module
+        cmds:
+            - for: { var: MODULES }
+              cmd: cd {{.ITEM}} && golangci-lint run ./...
+
+    test:
+        desc: Run tests with the race detector, Docker tests skipped
+        cmds:
+            - for: { var: MODULES }
+              cmd: cd {{.ITEM}} && go test -race -short ./...
+
+    test:integration:
+        desc: Run all tests including the Docker ones
+        cmds:
+            - for: { var: MODULES }
+              cmd: cd {{.ITEM}} && go test -race ./...
+
+    vuln:
+        desc: Run govulncheck in every module
+        cmds:
+            - for: { var: MODULES }
+              cmd: cd {{.ITEM}} && {{.GOVULNCHECK}} ./...
+
+    release:
+        desc: Check, then tag VERSION for the core and every nested module (task release VERSION=v0.1.0)
+        requires:
+            vars: [VERSION]
+        cmds:
+            - sh scripts/work.sh
+            - task: lint
+            - task: test
+            - sh scripts/release.sh {{.VERSION}}
+
+    release:dry:
+        desc: Print the release steps for VERSION without tagging, committing or pushing
+        requires:
+            vars: [VERSION]
+        env:
+            DRY_RUN: "1"
+        cmds:
+            - sh scripts/release.sh {{.VERSION}}
+
+    release:resume:
+        desc: Finish an interrupted release of VERSION, skipping the tags that already exist
+        requires:
+            vars: [VERSION]
+        env:
+            RESUME: "1"
+        cmds:
+            - sh scripts/work.sh
+            - sh scripts/release.sh {{.VERSION}}

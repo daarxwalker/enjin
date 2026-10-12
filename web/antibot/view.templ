@@ -1,0 +1,5 @@
+package antibot
+
+templ TurnstileWidget(siteKey, theme string) {
+	<div x-data x-turnstile={ siteKey } data-theme={ theme } data-script={ turnstileScriptURL }></div>
+}

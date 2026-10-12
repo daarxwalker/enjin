@@ -1,0 +1,69 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+permissions:
+    contents: read
+
+env:
+    GOLANGCI_LINT_VERSION: v2.14.0
+    TEMPL_VERSION: v0.3.1020
+    GOVULNCHECK_VERSION: v1.8.0
+
+jobs:
+    check:
+        name: check ${{ matrix.module }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                module: [., app/openapi, bus/nats, enjintest, examples, filestore/minio, google, mail/ses]
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-go@v6
+              with:
+                  go-version-file: go.mod
+                  check-latest: true
+            - run: sh scripts/work.sh
+            - run: go vet ./...
+              working-directory: ${{ matrix.module }}
+            - run: go test -race -short ./...
+              working-directory: ${{ matrix.module }}
+            - uses: golangci/golangci-lint-action@v8
+              with:
+                  version: ${{ env.GOLANGCI_LINT_VERSION }}
+                  install-mode: goinstall
+                  working-directory: ${{ matrix.module }}
+            - run: go run golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }} ./...
+              working-directory: ${{ matrix.module }}
+
+    integration:
+        name: integration ${{ matrix.module }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                module: [., bus/nats, filestore/minio]
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-go@v6
+              with:
+                  go-version-file: go.mod
+                  check-latest: true
+            - run: sh scripts/work.sh
+            - run: go test -race ./...
+              working-directory: ${{ matrix.module }}
+
+    templ:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-go@v6
+              with:
+                  go-version-file: go.mod
+                  check-latest: true
+            - run: go run github.com/a-h/templ/cmd/templ@${{ env.TEMPL_VERSION }} generate -path .
+            - run: git diff --exit-code

@@ -1,0 +1,69 @@
+package main
+
+import (
+	"github.com/daarxwalker/enjin/app"
+	"github.com/daarxwalker/enjin/validate"
+	"github.com/daarxwalker/enjin/web/flash"
+	"github.com/daarxwalker/enjin/web/head"
+)
+
+type guestbookVM struct {
+	CSRF       templ.Component
+	Validation validate.Result
+	Entries    []entry
+}
+
+templ layout() {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			@head.Tags()
+		</head>
+		<body>
+			<div id="flash">
+				for _, m := range flash.From(ctx) {
+					<p class={ "flash", "flash-" + string(m.Type) }>{ m.Message }</p>
+				}
+			</div>
+			<main>
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
+
+templ guestbookPage(vm guestbookVM) {
+	<h1>Guestbook</h1>
+	<form method="post" action={ templ.SafeURL(app.MustURL(ctx, routeHome)) }>
+		@vm.CSRF
+		<label>
+			Name
+			<input name="name"/>
+		</label>
+		@fieldErrors(vm.Validation.Get("name"))
+		<label>
+			Message
+			<textarea name="message"></textarea>
+		</label>
+		@fieldErrors(vm.Validation.Get("message"))
+		<button type="submit">Sign</button>
+	</form>
+	<ul>
+		for _, e := range vm.Entries {
+			<li><strong>{ e.Name }</strong>: { e.Message }</li>
+		}
+	</ul>
+}
+
+templ fieldErrors(verdicts []validate.Verdict) {
+	for _, v := range verdicts {
+		<small class="error">{ v.Reason } { v.Value }</small>
+	}
+}
+
+templ errorPage(text string) {
+	<h1>{ text }</h1>
+	<a href={ templ.SafeURL(app.MustURL(ctx, routeHome)) }>Back to the guestbook</a>
+}

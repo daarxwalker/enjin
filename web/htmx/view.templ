@@ -1,0 +1,34 @@
+package htmx
+
+// Partial renders an <hx-partial> block, new in htmx 4. It targets one
+// element from a response that updates several, with its own target and swap
+// strategy - an alternative to SwapOob when the content is not keyed by id:
+//
+//	@htmx.Partial(htmx.PartialProps{ID: "messages", Swap: htmx.SwapAppend}) {
+//	    @message(m)
+//	}
+//	@htmx.Partial(htmx.PartialProps{ID: "count"}) {
+//	    <span>{ strconv.Itoa(n) }</span>
+//	}
+//
+// Two rules are easy to miss:
+//
+//   - When a response carries only partials and no main content, htmx skips
+//     the main swap. To clear the main target anyway, add
+//     Modifier(ModSwapEmpty, "true") to the triggering element's Swap value.
+//   - htmx 4 swaps the main content first and partials after it, in document
+//     order. htmx 2 did out-of-band swaps first, so a partial can no longer
+//     prepare DOM the main swap depends on.
+templ Partial(props PartialProps) {
+	<hx-partial
+		if props.GetTarget() != "" {
+			{ Target() }={ props.GetTarget() }
+		}
+		if props.Swap != "" {
+			{ Swap() }={ props.Swap }
+		}
+		{ props.Attrs... }
+	>
+		{ children... }
+	</hx-partial>
+}

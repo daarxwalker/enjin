@@ -1,0 +1,76 @@
+version: "2"
+
+run:
+    go: "1.27"
+    relative-path-mode: gomod
+    timeout: 5m
+    modules-download-mode: readonly
+
+linters:
+    exclusions:
+        rules:
+            - linters:
+                  - revive
+              text: "comment"
+            - linters:
+                  - staticcheck
+              text: "ST(1020|1021|1022):"
+            - linters:
+                  - staticcheck
+              text: "SA1006:"
+            - linters:
+                  - govet
+              text: "non-constant format string in call to fmt.Errorf"
+            - linters:
+                  - gocognit
+              path: _test\.go
+            - linters:
+                  - govet
+              text: "fieldalignment:"
+              path: _test\.go
+            - linters:
+                  - gosec
+              path: _test\.go
+    enable:
+        - errcheck
+        - govet
+        - ineffassign
+        - staticcheck
+        - unused
+        - revive
+        - gocognit
+        - gocritic
+        - bodyclose
+        - contextcheck
+        - copyloopvar
+        - errorlint
+        - nilerr
+        - unparam
+        - gosec
+        - wastedassign
+        - exhaustive
+        - misspell
+        - modernize
+        - nolintlint
+        - rowserrcheck
+        - sqlclosecheck
+        - testifylint
+        - usestdlibvars
+    settings:
+        staticcheck:
+            checks:
+                - "all"
+                - "-QF1008"
+        govet:
+            enable:
+                - fieldalignment
+        misspell:
+            locale: US
+        nolintlint:
+            require-explanation: true
+            require-specific: true
+
+formatters:
+    enable:
+        - gofmt
+        - goimports

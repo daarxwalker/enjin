@@ -1,0 +1,17 @@
+package head
+
+templ Tags() {
+	{{ h := From(ctx) }}
+	if h.Title != "" {
+		<title>{ h.Title }</title>
+	}
+	for _, meta := range h.Metas {
+		<meta name={ meta.Name } content={ meta.Content }/>
+	}
+	for _, link := range h.Links {
+		<link href={ link.Href } rel={ link.Rel } type={ link.Type }/>
+	}
+	for _, script := range h.Scripts {
+		<script src={ script.Src } defer?={ script.Defer }></script>
+	}
+}
