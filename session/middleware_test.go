@@ -5,10 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/daarxwalker/enjin/app"
+	"github.com/daarxwalker/enjin/httpx"
 	"github.com/daarxwalker/enjin/infra/cache"
 	"github.com/daarxwalker/enjin/internal/testredis"
 	"github.com/daarxwalker/enjin/security"
@@ -50,6 +53,100 @@ func TestRestrict(t *testing.T) {
 		"accept any account without role", func(t *testing.T) {
 			token := srv.seed(session.WithID("user"))
 			require.Equal(t, http.StatusOK, srv.get("/account", token))
+		},
+	)
+}
+
+func TestRedirectBack(t *testing.T) {
+	tests := []struct {
+		name     string
+		method   string
+		target   string
+		prefix   string
+		options  []session.MiddlewareOption
+		location string
+	}{
+		{
+			name:     "adds the rejected path",
+			method:   http.MethodGet,
+			target:   "/account",
+			options:  []session.MiddlewareOption{session.WithRedirectName("login"), session.WithRedirectBack()},
+			location: "/login?redirect=%2Faccount",
+		},
+		{
+			name:     "keeps the rejected query",
+			method:   http.MethodGet,
+			target:   "/account?tab=orders&page=2",
+			options:  []session.MiddlewareOption{session.WithRedirectBack(), session.WithRedirectName("login")},
+			location: "/login?redirect=%2Faccount%3Ftab%3Dorders%26page%3D2",
+		},
+		{
+			name:     "keeps the query of the target",
+			method:   http.MethodGet,
+			target:   "/account",
+			options:  []session.MiddlewareOption{session.WithRedirectName("login", map[string]any{"step": "email"}), session.WithRedirectBack()},
+			location: "/login?redirect=%2Faccount&step=email",
+		},
+		{
+			name:     "includes the path prefix",
+			method:   http.MethodGet,
+			target:   "/account",
+			prefix:   "/shop",
+			options:  []session.MiddlewareOption{session.WithRedirectName("login"), session.WithRedirectBack()},
+			location: "/shop/login?redirect=%2Fshop%2Faccount",
+		},
+		{
+			name:     "skips unsafe methods",
+			method:   http.MethodPost,
+			target:   "/account",
+			options:  []session.MiddlewareOption{session.WithRedirectName("login"), session.WithRedirectBack()},
+			location: "/login",
+		},
+		{
+			name:     "off by default",
+			method:   http.MethodGet,
+			target:   "/account",
+			options:  []session.MiddlewareOption{session.WithRedirectName("login")},
+			location: "/login",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				mux := chi.NewRouter()
+				mux.Use(httpx.NewProxy(httpx.WithTrustedProxies(netip.MustParsePrefix("192.0.2.0/24"))).Middleware, httpx.Middleware)
+				r := app.NewRouter(mux, app.NewDefaultHandler())
+				r.Get("login", "/login", func(w http.ResponseWriter, _ *http.Request) error {
+					w.WriteHeader(http.StatusOK)
+					return nil
+				})
+				restricted := r.With(session.Restrict(security.AnyAccount(), tt.options...))
+				handler := func(w http.ResponseWriter, _ *http.Request) error {
+					w.WriteHeader(http.StatusOK)
+					return nil
+				}
+				restricted.Get("account", "/account", handler)
+				restricted.Post("accountUpdate", "/account", handler)
+				require.NoError(t, r.Err())
+
+				req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.target, nil)
+				if tt.prefix != "" {
+					req.Header.Set("X-Forwarded-Prefix", tt.prefix)
+				}
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, req)
+				require.Equal(t, http.StatusSeeOther, w.Code)
+				require.Equal(t, tt.location, w.Header().Get("Location"))
+			},
+		)
+	}
+
+	t.Run(
+		"without target responds with an error", func(t *testing.T) {
+			handler := session.Restrict(security.AnyAccount(), session.WithRedirectBack())(http.NotFoundHandler())
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account", nil))
+			require.Equal(t, http.StatusUnauthorized, w.Code)
 		},
 	)
 }

@@ -232,13 +232,14 @@ session.Destroy(w, r)
 token, err := store.Seed(ctx, session.WithID(id))
 
 r.With(session.Restrict(security.RequireRole(admin))).Get("admin", "/admin", c.renderAdmin)
-r.With(session.Restrict(security.AnyAccount(), session.WithRedirectName("login"))).Get("account", "/account", c.renderAccount)
+r.With(session.Restrict(security.AnyAccount(), session.WithRedirectName("login"), session.WithRedirectBack())).Get("account", "/account", c.renderAccount)
 r.With(session.Forbid(session.WithRedirectName("home"))).Get("login", "/login", c.renderLogin)
 ```
 
 - `Attach` always issues a new token (no session fixation); with no options it does nothing.
 - Sliding expiration; a session removed by a parallel logout stays removed.
 - `WithBearer`: `Authorization: Bearer <token>` first, then the cookie.
+- `WithRedirectBack`: a rejected GET or HEAD redirects to `/login?redirect=/account`, ready for `redirect.FromQuery`; it needs a target such as `WithRedirectName`.
 
 ## security
 
