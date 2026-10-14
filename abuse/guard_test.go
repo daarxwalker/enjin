@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -28,6 +29,10 @@ type guardTestDecision struct {
 	dryRun  bool
 }
 
+type guardTestRecorder struct {
+	events []Event
+}
+
 type guardFailingStore struct {
 	Store
 }
@@ -38,6 +43,10 @@ func (c *guardTestClock) Now() time.Time {
 
 func (m *guardTestMetrics) CountDecision(policy, rule string, verdict Verdict, dryRun bool) {
 	m.decisions = append(m.decisions, guardTestDecision{policy: policy, rule: rule, verdict: verdict, dryRun: dryRun})
+}
+
+func (rec *guardTestRecorder) RecordEvent(_ context.Context, event Event) {
+	rec.events = append(rec.events, event)
 }
 
 func (guardFailingStore) HitCounter(Key, time.Duration, time.Time) (int, error) {
@@ -170,6 +179,54 @@ func TestGuard(t *testing.T) {
 		require.Equal(t, http.StatusOK, serveGuard(guard, policy, newGuardRequest("203.0.113.7:1234", "Mozilla/5.0")).Code)
 	})
 
+	t.Run("records block event", func(t *testing.T) {
+		recorder := new(guardTestRecorder)
+		guard := newGuardTestRecordingGuard(t, NewMemoryStore(t.Context()), &guardTestClock{now: start}, recorder)
+		policy := Policy{Name: "login", Rules: []Rule{CreateRateLimitRule(CountedByIP, 1, 10*time.Minute, VerdictBlock)}}
+		serveGuard(guard, policy, newGuardRequest("203.0.113.7:1234", "Mozilla/5.0"))
+		require.Empty(t, recorder.events)
+		serveGuard(guard, policy, newGuardRequest("203.0.113.7:1234", "Mozilla/5.0"))
+		require.Equal(t, []Event{{
+			Time:       start,
+			Addr:       netip.MustParseAddr("203.0.113.7"),
+			IP:         netip.MustParsePrefix("203.0.113.7/32"),
+			Policy:     "login",
+			Rule:       "rate-ip-1-10m0s",
+			Method:     http.MethodGet,
+			Path:       "/products/x",
+			UserAgent:  "Mozilla/5.0",
+			RetryAfter: 10 * time.Minute,
+			Verdict:    VerdictBlock,
+		}}, recorder.events)
+	})
+
+	t.Run("records dry run event", func(t *testing.T) {
+		recorder := new(guardTestRecorder)
+		guard := newGuardTestRecordingGuard(t, NewMemoryStore(t.Context()), &guardTestClock{now: start}, recorder)
+		policy := Policy{Name: "page", Rules: []Rule{CreateUserAgentRule(VerdictBlock)}, DryRun: true}
+		require.Equal(t, http.StatusOK, serveGuard(guard, policy, newGuardRequest("203.0.113.7:1234", "curl/8.7.1")).Code)
+		require.Len(t, recorder.events, 1)
+		require.True(t, recorder.events[0].DryRun)
+		require.Equal(t, "user-agent", recorder.events[0].Rule)
+		require.Equal(t, "curl/8.7.1", recorder.events[0].UserAgent)
+	})
+
+	t.Run("records penalty block", func(t *testing.T) {
+		clock := &guardTestClock{now: start}
+		recorder := new(guardTestRecorder)
+		guard := newGuardTestRecordingGuard(t, NewMemoryStore(t.Context()), clock, recorder)
+		strict := Policy{Name: "page", Rules: []Rule{CreateUserAgentRule(VerdictBlock)}}
+		serveGuard(guard, strict, newGuardRequest("203.0.113.7:1234", "curl/8.7.1"))
+		clock.now = start.Add(2 * time.Minute)
+		serveGuard(guard, strict, newGuardRequest("203.0.113.7:1234", "curl/8.7.1"))
+		serveGuard(guard, strict, newGuardRequest("203.0.113.7:1234", "Mozilla/5.0"))
+		require.Len(t, recorder.events, 3)
+		last := recorder.events[2]
+		require.Equal(t, RulePenalty, last.Rule)
+		require.Equal(t, time.Hour, last.RetryAfter)
+		require.Equal(t, "Mozilla/5.0", last.UserAgent)
+	})
+
 	t.Run("verified bot gets bot policy on reads", func(t *testing.T) {
 		store := NewMemoryStore(t.Context())
 		require.NoError(t, store.SaveMark(Key{Namespace: botNamespace, Value: "66.249.66.1"}, true, time.Hour, start))
@@ -197,6 +254,16 @@ func newGuardTestGuard(t *testing.T, store Store, clock *guardTestClock, metrics
 		options = append(options, WithMetrics(metrics))
 	}
 	return NewGuard(store, options...)
+}
+
+func newGuardTestRecordingGuard(t *testing.T, store Store, clock *guardTestClock, recorder *guardTestRecorder) *Guard {
+	t.Helper()
+	return NewGuard(
+		store,
+		WithClock(clock),
+		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		WithRecorder(recorder),
+	)
 }
 
 func newGuardRequest(remoteAddr, userAgent string) *http.Request {

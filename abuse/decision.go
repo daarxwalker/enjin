@@ -1,6 +1,9 @@
 package abuse
 
-import "time"
+import (
+	"net/netip"
+	"time"
+)
 
 type Verdict uint8
 
@@ -9,6 +12,8 @@ const (
 	VerdictDelay
 	VerdictBlock
 )
+
+const RulePenalty = "penalty"
 
 type Decision struct {
 	Rule       string
@@ -26,4 +31,21 @@ func (v Verdict) String() string {
 		return "block"
 	}
 	return "unknown"
+}
+
+type Event struct {
+	Time       time.Time
+	Addr       netip.Addr
+	IP         netip.Prefix
+	Policy     string
+	Rule       string
+	ClientID   string
+	UserID     string
+	Method     string
+	Path       string
+	UserAgent  string
+	RetryAfter time.Duration
+	Verdict    Verdict
+	DryRun     bool
+	GoodBot    bool
 }

@@ -33,6 +33,13 @@ type Metrics interface {
 	CountDecision(policy, rule string, verdict Verdict, dryRun bool)
 }
 
+// Recorder receives every decision other than allow, dry runs included. It is
+// called on the request path, so it must return quickly (hand the event over to
+// a channel or bus); ctx ends with the request.
+type Recorder interface {
+	RecordEvent(ctx context.Context, event Event)
+}
+
 type Clock interface {
 	Now() time.Time
 }

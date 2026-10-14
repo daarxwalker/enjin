@@ -13,7 +13,6 @@ import (
 
 const (
 	penaltyNamespace     = "penalty"
-	penaltyRule          = "penalty"
 	penaltyRaiseInterval = time.Minute
 	penaltyDecayInterval = time.Hour
 	penaltyTTL           = 25 * time.Hour
@@ -30,6 +29,7 @@ type Guard struct {
 	store         Store
 	clock         Clock
 	metrics       Metrics
+	recorder      Recorder
 	block         http.Handler
 	bots          *BotVerifier
 	log           *slog.Logger
@@ -132,7 +132,7 @@ func (g *Guard) escalatePenalty(ctx context.Context, id Identity, policy Policy,
 		return decision
 	}
 	if now.Before(penalty.BlockedUntil) {
-		return g.pickStricterDecision(decision, Decision{Verdict: VerdictBlock, Rule: penaltyRule, RetryAfter: penalty.BlockedUntil.Sub(now)})
+		return g.pickStricterDecision(decision, Decision{Verdict: VerdictBlock, Rule: RulePenalty, RetryAfter: penalty.BlockedUntil.Sub(now)})
 	}
 	if decision.Verdict != VerdictBlock {
 		return decision
@@ -144,7 +144,7 @@ func (g *Guard) escalatePenalty(ctx context.Context, id Identity, policy Policy,
 		}
 	}
 	if raised.BlockedUntil.After(now) {
-		return g.pickStricterDecision(decision, Decision{Verdict: VerdictBlock, Rule: penaltyRule, RetryAfter: raised.BlockedUntil.Sub(now)})
+		return g.pickStricterDecision(decision, Decision{Verdict: VerdictBlock, Rule: RulePenalty, RetryAfter: raised.BlockedUntil.Sub(now)})
 	}
 	return decision
 }
@@ -186,11 +186,30 @@ func (g *Guard) pickStricterDecision(a, b Decision) Decision {
 }
 
 func (g *Guard) reportDecision(r *http.Request, id Identity, policy Policy, decision Decision, now time.Time) {
+	ctx := r.Context()
 	if g.metrics != nil {
 		g.metrics.CountDecision(policy.Name, decision.Rule, decision.Verdict, policy.DryRun)
 	}
+	if g.recorder != nil {
+		g.recorder.RecordEvent(ctx, Event{
+			Time:       now,
+			Addr:       id.Addr,
+			IP:         id.IP,
+			Policy:     policy.Name,
+			Rule:       decision.Rule,
+			ClientID:   id.ClientID,
+			UserID:     id.UserID,
+			Method:     r.Method,
+			Path:       r.URL.Path,
+			UserAgent:  r.UserAgent(),
+			RetryAfter: decision.RetryAfter,
+			Verdict:    decision.Verdict,
+			DryRun:     policy.DryRun,
+			GoodBot:    id.GoodBot,
+		})
+	}
 	g.log.WarnContext(
-		r.Context(),
+		ctx,
 		"abuse decision",
 		slog.String("policy", policy.Name),
 		slog.String("rule", decision.Rule),

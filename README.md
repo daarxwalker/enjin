@@ -558,6 +558,7 @@ guard := abuse.NewGuard(store,
     abuse.WithGoodBotPolicy(abuse.Policy{Name: "bot", Rules: []abuse.Rule{
         abuse.CreateRateLimitRule(abuse.CountedByIP, 600, time.Minute, abuse.VerdictDelay),
     }}),
+    abuse.WithRecorder(recorder), // RecordEvent(ctx, abuse.Event)
 )
 
 login := abuse.Policy{Name: "login", Rules: []abuse.Rule{
@@ -580,6 +581,7 @@ err = store.UnmarshalBinary(snapshot)
 - Verdicts: `VerdictAllow`, `VerdictDelay`, `VerdictBlock` (`429` with `Retry-After`).
 - Repeated blocks within one policy escalate to a 1 h, then 24 h IP block.
 - `Policy.DryRun` only logs; other options: `WithBlockHandler`, `WithMetrics`, `WithLogger`.
+- `WithRecorder` hands every delay and block (dry runs too) to the app as an `abuse.Event`: time, IP and its counted prefix, policy, rule (`abuse.RulePenalty` for an escalated block), client, user, method, path, user agent, retry after. It runs on the request path, so queue the event and store it elsewhere. The event carries the raw IP (the log keeps only a daily hash), so retention is up to the app.
 
 ## bus
 

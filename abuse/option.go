@@ -29,6 +29,12 @@ func WithMetrics(metrics Metrics) Option {
 	}
 }
 
+func WithRecorder(recorder Recorder) Option {
+	return func(g *Guard) {
+		g.recorder = recorder
+	}
+}
+
 func WithBlockHandler(handler http.Handler) Option {
 	return func(g *Guard) {
 		g.block = handler
