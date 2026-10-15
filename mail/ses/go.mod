@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.37
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.36
 	github.com/aws/aws-sdk-go-v2/service/ses v1.37.3
-	github.com/daarxwalker/enjin v0.1.4
+	github.com/daarxwalker/enjin v0.1.5
 )
 
 require (
