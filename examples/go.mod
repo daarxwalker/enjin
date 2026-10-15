@@ -5,8 +5,8 @@ go 1.27
 require (
 	github.com/a-h/templ v0.3.1020
 	github.com/alicebob/miniredis/v2 v2.39.0
-	github.com/daarxwalker/enjin v0.1.3
-	github.com/daarxwalker/enjin/app/openapi v0.1.3
+	github.com/daarxwalker/enjin v0.1.4
+	github.com/daarxwalker/enjin/app/openapi v0.1.4
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
 	github.com/redis/go-redis/v9 v9.21.0

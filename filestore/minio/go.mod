@@ -3,8 +3,8 @@ module github.com/daarxwalker/enjin/filestore/minio
 go 1.27
 
 require (
-	github.com/daarxwalker/enjin v0.1.3
-	github.com/daarxwalker/enjin/enjintest v0.1.3
+	github.com/daarxwalker/enjin v0.1.4
+	github.com/daarxwalker/enjin/enjintest v0.1.4
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/stretchr/testify v1.11.1
 )
