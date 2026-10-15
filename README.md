@@ -519,6 +519,9 @@ err = mailer.Send(ctx, mail.Message{
 ```
 
 - `mail.Render` compiles MJML inside a templ component to HTML.
+- SMTP options: `mail.WithSMTPEncryption(mail.SMTPEncryptionStartTLS)` (also `None`, `ImplicitTLS`; default `Auto` = implicit TLS on 465, otherwise STARTTLS when offered), `WithSMTPHelo(name)` (default `os.Hostname()`), `WithSMTPTLSConfig(cfg)`, `WithSMTPOAuth2(tokenSource)`, `WithSMTPTimeout(d)` (default 30 s), `WithSMTPLogger(log)`.
+- Empty username skips auth (Mailpit, IP relay). Otherwise PLAIN, LOGIN or CRAM-MD5 by what the server offers; a cleartext password goes only over TLS or to localhost.
+- Once the server accepts the message, a failed QUIT is only logged, so a retry does not send it twice.
 - SES driver in [mail/ses](#nested-modules).
 - Brevo API driver in `mail/brevo` (core module): `mail.NewManager(brevo.NewDriver(apiKey))`. No embeds and one Reply-To at most; for those use the Brevo SMTP relay: `mail.NewSMTPDriver("smtp-relay.brevo.com", "587", login, smtpKey)`.
 
