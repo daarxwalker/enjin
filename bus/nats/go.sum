@@ -26,10 +26,10 @@ github.com/cpuguy83/dockercfg v0.3.2 h1:DlJTyZGBDlXqUZ2Dk2Q3xHs/FtnooJJVaad2S9GK
 github.com/cpuguy83/dockercfg v0.3.2/go.mod h1:sugsbF4//dDlL/i+S+rtpIWp+5h0BHJHfjj5/jFyUJc=
 github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
 github.com/creack/pty v1.1.24/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
-github.com/daarxwalker/enjin v0.1.4 h1:nxQh0WBMS727dlgX5bPQmixQVPAFSu08rM0DXD4/6D0=
-github.com/daarxwalker/enjin v0.1.4/go.mod h1:VtVhsTnAD8M1OhntII3y1WSg3/4jOwdxZFyqtQnk3Ag=
-github.com/daarxwalker/enjin/enjintest v0.1.4 h1:UEMSfZTYDpT2v/+7/zYp3mPiUJ3mcj8PldT0giToCiw=
-github.com/daarxwalker/enjin/enjintest v0.1.4/go.mod h1:9hUWKChebVEc37dt4uKve5NR1/O0Ef4m9ZJkGVzLlts=
+github.com/daarxwalker/enjin v0.1.5 h1:JABnKHsLboUd2ORTBHTM3OTbmIA4BlER/QSTaJj8dYo=
+github.com/daarxwalker/enjin v0.1.5/go.mod h1:VtVhsTnAD8M1OhntII3y1WSg3/4jOwdxZFyqtQnk3Ag=
+github.com/daarxwalker/enjin/enjintest v0.1.5 h1:qFe3A8ZABYElKmxnvAkv9EiKM53yo8tyT7TO4VVMq7s=
+github.com/daarxwalker/enjin/enjintest v0.1.5/go.mod h1:SSr878aclOZvdj9Wos50EEM/MMAg18c/EYQeamW2tuo=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
