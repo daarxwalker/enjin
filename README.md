@@ -8,7 +8,7 @@ Go toolkit for HTTP backends — server-rendered (templ + htmx + Alpine) or JSON
 - Web layer: CSRF, flash, head/assets, theme, cookie consent, redirect, Turnstile, htmx and Alpine helpers
 - OpenAPI 3.1 from route registration
 - Postgres (pgx), Redis/Valkey cache, object storage, distributed lock, per-IP limiter, abuse guard
-- Event bus (in-memory or NATS), mail (MJML + templ, SMTP, SES), SSE, i18n
+- Event bus (in-memory or NATS), mail (MJML + templ, SMTP, SES, Brevo), SSE, i18n
 
 ```bash
 go get github.com/daarxwalker/enjin
@@ -520,6 +520,7 @@ err = mailer.Send(ctx, mail.Message{
 
 - `mail.Render` compiles MJML inside a templ component to HTML.
 - SES driver in [mail/ses](#nested-modules).
+- Brevo API driver in `mail/brevo` (core module): `mail.NewManager(brevo.NewDriver(apiKey))`. No embeds and one Reply-To at most; for those use the Brevo SMTP relay: `mail.NewSMTPDriver("smtp-relay.brevo.com", "587", login, smtpKey)`.
 
 ## limit
 
