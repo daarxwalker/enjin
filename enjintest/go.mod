@@ -3,7 +3,7 @@ module github.com/daarxwalker/enjin/enjintest
 go 1.27
 
 require (
-	github.com/daarxwalker/enjin v0.1.3
+	github.com/daarxwalker/enjin v0.1.4
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/nats-io/nats.go v1.48.0
