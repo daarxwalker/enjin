@@ -4,7 +4,7 @@ set -eu
 root=github.com/daarxwalker/enjin
 first_wave="enjintest app/openapi mail/ses google"
 second_wave="bus/nats filestore/minio"
-untagged="examples"
+untagged="examples internal/integration"
 version="${1:-}"
 dry_run="${DRY_RUN:-}"
 resume="${RESUME:-}"

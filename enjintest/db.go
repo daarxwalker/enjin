@@ -2,7 +2,9 @@ package enjintest
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"io/fs"
 	"strconv"
 	"testing"
 
@@ -54,23 +56,31 @@ func NewPostgres(ctx context.Context, t testing.TB, options ...Option) *pgxpool.
 
 	t.Cleanup(pool.Close)
 
+	migrateClient := stdlib.OpenDBFromPool(pool)
+	defer func() {
+		if closeErr := migrateClient.Close(); closeErr != nil {
+			require.NoError(t, fmt.Errorf("close migrate client failed: %w", closeErr))
+		}
+	}()
 	if cfg.migrationsFS != nil {
-		migrateClient := stdlib.OpenDBFromPool(pool)
-		defer func() {
-			if closeErr := migrateClient.Close(); closeErr != nil {
-				require.NoError(t, fmt.Errorf("close migrate client failed: %w", closeErr))
-			}
-		}()
-		provider, err := goose.NewProvider(goose.DialectPostgres, migrateClient, cfg.migrationsFS)
-		if err != nil {
-			require.NoError(t, fmt.Errorf("set goose dialect failed: %w", err))
-			return nil
-		}
-		if _, err = provider.Up(ctx); err != nil {
-			require.NoError(t, fmt.Errorf("run migrations failed: %w", err))
-			return nil
-		}
+		runMigrations(ctx, t, migrateClient, cfg.migrationsFS, goose.DefaultTablename)
+	}
+	for _, migrations := range cfg.tableMigrations {
+		runMigrations(ctx, t, migrateClient, migrations.migrationsFS, migrations.versionTable)
 	}
 
 	return pool
+}
+
+func runMigrations(ctx context.Context, t testing.TB, migrateClient *sql.DB, migrationsFS fs.FS, versionTable string) {
+	t.Helper()
+	provider, err := goose.NewProvider(
+		goose.DialectPostgres,
+		migrateClient,
+		migrationsFS,
+		goose.WithTableName(versionTable),
+	)
+	require.NoError(t, err, "create goose provider for %s", versionTable)
+	_, err = provider.Up(ctx)
+	require.NoError(t, err, "run migrations of %s", versionTable)
 }

@@ -7,7 +7,7 @@ Go toolkit for HTTP backends — server-rendered (templ + htmx + Alpine) or JSON
 - Manual validation with results that survive a redirect
 - Web layer: CSRF, flash, head/assets, theme, cookie consent, redirect, Turnstile, htmx and Alpine helpers
 - OpenAPI 3.1 from route registration
-- Postgres (pgx), Redis/Valkey cache, object storage, distributed lock, per-IP limiter, abuse guard
+- Postgres (pgx), Redis/Valkey or Postgres cache, object storage, distributed lock, per-IP limiter, abuse guard
 - Event bus (in-memory or NATS), mail (MJML + templ, SMTP, SES, Brevo), SSE, i18n
 
 ```bash
@@ -19,8 +19,7 @@ go get github.com/daarxwalker/enjin
 | `github.com/daarxwalker/enjin/app/openapi` | OpenAPI document (swaggest) |
 | `github.com/daarxwalker/enjin/mail/ses` | AWS SES mail driver |
 | `github.com/daarxwalker/enjin/filestore/minio` | MinIO / S3 file store driver |
-| `github.com/daarxwalker/enjin/bus/nats` | NATS bus driver (core or JetStream) |
-| `github.com/daarxwalker/enjin/google` | Google OAuth / service account, `google/spreadsheet` |
+| `github.com/daarxwalker/enjin/bus/nats` | NATS bus driver (core or JetStream) || `github.com/daarxwalker/enjin/google` | Google OAuth / service account, `google/spreadsheet` |
 | `github.com/daarxwalker/enjin/enjintest` | Postgres, Valkey, SeaweedFS, NATS test containers |
 
 Runnable apps: [`examples/api`](examples/api) (JSON API) and [`examples/web`](examples/web) (server-rendered).
@@ -28,7 +27,7 @@ Runnable apps: [`examples/api`](examples/api) (JSON API) and [`examples/web`](ex
 ## Contents
 
 - [app](#app) · [httpx](#httpx)
-- [infra/db](#infradb) · [infra/cache](#infracache) · [filestore](#filestore)
+- [infra/db](#infradb) · [infra/cache](#infracache) · [Postgres instead of Redis](#postgres-instead-of-redis) · [filestore](#filestore)
 - [client](#client) · [session](#session) · [security](#security) · [cookie](#cookie) · [token](#token)
 - [validate](#validate)
 - [web](#web) · [web/render](#webrender) · [web/head, web/assets](#webhead-webassets) · [web/flash](#webflash) · [web/csrf](#webcsrf) · [web/theme](#webtheme) · [web/consent](#webconsent) · [web/redirect](#webredirect) · [web/backlink](#webbacklink) · [web/antibot](#webantibot) · [web/htmx](#webhtmx) · [web/alpine](#webalpine)
@@ -189,6 +188,49 @@ err = c.Delete(ctx, key)
 
 - Every read returns the cache error; an outage is never a miss.
 - `Take*` reads and deletes in one step (one-time tokens).
+- Without Redis/Valkey see [Postgres instead of Redis](#postgres-instead-of-redis).
+- A new driver must pass `cachetest.RunDriverSuite` (likewise `csrftest`,
+  `locktest` and `filestoretest` for the other ports).
+
+## Postgres instead of Redis
+
+Cache, CSRF tokens and locks each have a Postgres driver next to the Redis one,
+so the whole app runs on Postgres alone.
+
+```go
+pool, err := db.Connect(ctx, uri)
+
+cacheClient := cache.NewClient(cache.NewPostgresDriver(pool))
+csrfInput := csrf.NewInputManager(csrf.NewPostgresDriver(pool))
+locker := lock.NewManager(lock.NewPostgresDriver(pool), time.Minute)
+
+go cleaner.NewCleaner(pool, keyvalue.Tables(), cleaner.WithLogger(logger)).RunCleanups(ctx, time.Minute)
+```
+
+Create the tables from `infra/db/migrations/keyvalue.FS` only when you use these
+drivers, with a goose provider and version table of their own. In the version
+table of your migrations their timestamp version would make goose reject every
+later migration of yours as out of order.
+
+```go
+provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, keyvalue.FS,
+    goose.WithTableName("enjin_keyvalue_version"))
+_, err = provider.Up(ctx)
+
+// tests
+pool := enjintest.NewPostgres(ctx, t,
+    enjintest.WithMigrationsFS(migrations.FS),
+    enjintest.WithMigrationsFSTable(keyvalue.FS, "enjin_keyvalue_version"),
+)
+```
+
+- The tables are UNLOGGED: fast, but Postgres empties them after a crash (every
+  session is gone) and a standby cannot read them.
+- Cache and lock expiry is measured by the database clock, CSRF expiry by the
+  application clock (as with Redis). Expired rows are invisible right away;
+  `infra/db/cleaner` only reclaims space and works for any table with an
+  `expires_at` column.
+- `cache.PostgresDriver.DeleteByPattern` takes a Redis glob (`*`, `?`, `\` escape).
 
 ## filestore
 
@@ -637,7 +679,8 @@ sheet, err := spreadsheet.GetSheet(ctx, sheetsService, spreadsheetID, "Products"
 Tests (Docker; skipped with `go test -short`):
 
 ```go
-pool := enjintest.NewPostgres(ctx, t, enjintest.WithMigrationsFS(migrations.FS))
+pool := enjintest.NewPostgres(ctx, t, enjintest.WithMigrationsFS(migrations.FS),
+    enjintest.WithMigrationsFSTable(keyvalue.FS, "enjin_keyvalue_version"))
 rdb := enjintest.NewValkey(ctx, t)
 s3 := enjintest.NewSeaweedFS(ctx, t, "bucket")
 nc := enjintest.NewNATS(ctx, t)

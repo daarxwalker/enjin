@@ -2,8 +2,9 @@
 
 Enjin is one repository with several Go modules: the core at the root and the
 nested modules `app/openapi`, `bus/nats`, `enjintest`, `filestore/minio`,
-`google` and `mail/ses`. Each is versioned with its own tag; `examples` is never
-tagged.
+`google` and `mail/ses`. Each is versioned with its own tag; `examples` and
+`internal/integration` (Docker tests of core drivers, so the core never depends
+on testcontainers) are never tagged.
 
 | Module | Tag | Requires |
 |---|---|---|
@@ -45,7 +46,8 @@ has some content. It then runs lint and tests and `scripts/release.sh`, which:
    the tag just pushed), commits together with the emptied `CHANGELOG.md`,
    pushes and tags `<module>/vX.Y.Z`,
 4. does the same for `bus/nats` and `filestore/minio` (they also require
-   `enjintest`) and for `examples`, which is updated but never tagged,
+   `enjintest`) and for `examples` and `internal/integration`, which are
+   updated but never tagged,
 5. asks the Go proxy for every new version so pkg.go.dev picks it up.
 
 Versions follow [Semantic Versioning](https://semver.org/); until `v1.0.0` a

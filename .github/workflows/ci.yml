@@ -20,7 +20,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                module: [., app/openapi, bus/nats, enjintest, examples, filestore/minio, google, mail/ses]
+                module: [., app/openapi, bus/nats, enjintest, examples, filestore/minio, google, internal/integration, mail/ses]
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-go@v6
@@ -46,7 +46,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                module: [., bus/nats, filestore/minio]
+                module: [., bus/nats, filestore/minio, internal/integration]
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-go@v6

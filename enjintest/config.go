@@ -6,9 +6,15 @@ import (
 )
 
 type config struct {
+	migrationsFS    fs.FS
+	version         string
+	tableMigrations []tableMigrations
+	port            int
+}
+
+type tableMigrations struct {
 	migrationsFS fs.FS
-	version      string
-	port         int
+	versionTable string
 }
 
 type Option func(*config)
@@ -28,6 +34,19 @@ func WithPort(port int) Option {
 func WithMigrationsFS(migrationsFS fs.FS) Option {
 	return func(c *config) {
 		c.migrationsFS = migrationsFS
+	}
+}
+
+// WithMigrationsFSTable runs one more set of goose migrations, tracked in its
+// own version table, after the WithMigrationsFS ones. Library migrations such
+// as infra/db/migrations/keyvalue need it: in the application version table
+// their timestamp versions would block every later application migration.
+func WithMigrationsFSTable(migrationsFS fs.FS, versionTable string) Option {
+	return func(c *config) {
+		c.tableMigrations = append(c.tableMigrations, tableMigrations{
+			migrationsFS: migrationsFS,
+			versionTable: versionTable,
+		})
 	}
 }
 

@@ -263,15 +263,19 @@ func checkIncrementAfterExpiry(t *testing.T, subject Subject) {
 func checkIncrementNonInteger(t *testing.T, driver cache.Driver) {
 	ctx := t.Context()
 	key := "suite:incr:text-value"
-	require.NoError(t, driver.Set(ctx, key, []byte("abc"), longTTL))
+	for _, stored := range []string{"abc", " 5", "5.0", ""} {
+		require.NoError(t, driver.Set(ctx, key, []byte(stored), longTTL))
 
-	_, err := driver.Increment(ctx, key, 1, longTTL)
-	require.Error(t, err)
+		for _, delta := range []int64{1, -1} {
+			_, err := driver.Increment(ctx, key, delta, longTTL)
+			require.Error(t, err, "%q %+d", stored, delta)
+		}
 
-	value, exists, err := driver.Get(ctx, key)
-	require.NoError(t, err)
-	require.True(t, exists)
-	require.Equal(t, "abc", string(value))
+		value, exists, err := driver.Get(ctx, key)
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.Equal(t, stored, string(value))
+	}
 }
 
 func checkConcurrentIncrement(t *testing.T, driver cache.Driver) {

@@ -100,7 +100,7 @@ func checkOverwrite(t *testing.T, driver filestore.Driver) {
 func checkUnknownSize(t *testing.T, driver filestore.Driver) {
 	key := "suite-unknown-size/note.txt"
 	value := []byte("size not known up front")
-	require.NoError(t, driver.Put(t.Context(), key, bytes.NewBufferString(string(value)), -1, "text/plain"))
+	require.NoError(t, driver.Put(t.Context(), key, bytes.NewBuffer(value), -1, "text/plain"))
 
 	requireGet(t, driver, key, value)
 	require.Equal(t, int64(len(value)), requireStat(t, driver, key).Size)

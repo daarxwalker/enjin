@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-    MODULES: . app/openapi bus/nats enjintest examples filestore/minio google mail/ses
+    MODULES: . app/openapi bus/nats enjintest examples filestore/minio google internal/integration mail/ses
     GOVULNCHECK: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
 tasks:
