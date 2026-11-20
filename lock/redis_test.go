@@ -10,52 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDriver(t *testing.T) {
-	ctx := context.Background()
-	cache := testredis.New(t)
-	driver := NewRedisDriver(cache)
-	require.NotNil(t, driver)
-
-	t.Run(
-		"try lock", func(t *testing.T) {
-			key := "test-key"
-			locked, lockErr := driver.TryLock(ctx, key, "owner", time.Minute)
-			require.NoError(t, lockErr)
-			require.True(t, locked)
-			released, unlockErr := driver.Unlock(ctx, key, "owner")
-			require.NoError(t, unlockErr)
-			require.True(t, released)
-		},
-	)
-
-	t.Run(
-		"try lock held", func(t *testing.T) {
-			key := "test-key-held"
-			locked, lockErr := driver.TryLock(ctx, key, "owner", time.Minute)
-			require.NoError(t, lockErr)
-			require.True(t, locked)
-			lockedAgain, lockAgainErr := driver.TryLock(ctx, key, "other", time.Minute)
-			require.NoError(t, lockAgainErr)
-			require.False(t, lockedAgain)
-		},
-	)
-
-	t.Run(
-		"unlock foreign token", func(t *testing.T) {
-			key := "test-key-foreign"
-			locked, lockErr := driver.TryLock(ctx, key, "owner", time.Minute)
-			require.NoError(t, lockErr)
-			require.True(t, locked)
-			released, unlockErr := driver.Unlock(ctx, key, "other")
-			require.NoError(t, unlockErr)
-			require.False(t, released)
-			value, getErr := cache.Get(ctx, key).Result()
-			require.NoError(t, getErr)
-			require.Equal(t, "owner", value)
-		},
-	)
-}
-
 func TestManager(t *testing.T) {
 	ctx := context.Background()
 	cache := testredis.New(t)

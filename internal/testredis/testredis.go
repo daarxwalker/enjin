@@ -9,9 +9,17 @@ import (
 )
 
 func New(t testing.TB) *redis.Client {
-	client := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
+	client, _ := NewWithServer(t)
+	return client
+}
+
+// NewWithServer also returns the miniredis server, whose clock only moves with
+// FastForward.
+func NewWithServer(t testing.TB) (*redis.Client, *miniredis.Miniredis) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() {
 		require.NoError(t, client.Close())
 	})
-	return client
+	return client, server
 }
