@@ -3,8 +3,8 @@ module github.com/daarxwalker/enjin/bus/nats
 go 1.27
 
 require (
-	github.com/daarxwalker/enjin v0.2.0
-	github.com/daarxwalker/enjin/enjintest v0.2.0
+	github.com/daarxwalker/enjin v0.3.0
+	github.com/daarxwalker/enjin/enjintest v0.3.0
 	github.com/nats-io/nats.go v1.48.0
 	github.com/stretchr/testify v1.11.1
 )
