@@ -3,8 +3,8 @@ module github.com/daarxwalker/enjin/internal/integration
 go 1.27
 
 require (
-	github.com/daarxwalker/enjin v0.3.0
-	github.com/daarxwalker/enjin/enjintest v0.3.0
+	github.com/daarxwalker/enjin v0.3.1
+	github.com/daarxwalker/enjin/enjintest v0.3.1
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/stretchr/testify v1.11.1
 )
