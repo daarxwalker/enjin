@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -34,15 +35,15 @@ func (m *memory[T]) Publish(ctx context.Context, message T) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
-		return ErrClosed
+		return fmt.Errorf("publish to memory bus failed: %w", ErrClosed)
 	}
 	select {
 	case m.publish <- message:
 		return nil
 	case <-m.closing:
-		return ErrClosed
+		return fmt.Errorf("publish to memory bus failed: %w", ErrClosed)
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("publish to memory bus stopped: %w", ctx.Err())
 	}
 }
 
@@ -50,13 +51,13 @@ func (m *memory[T]) TryPublish(message T) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
-		return ErrClosed
+		return fmt.Errorf("try publish to memory bus failed: %w", ErrClosed)
 	}
 	select {
 	case m.publish <- message:
 		return nil
 	default:
-		return ErrFull
+		return fmt.Errorf("try publish to memory bus failed: %w", ErrFull)
 	}
 }
 
@@ -66,7 +67,7 @@ func (m *memory[T]) Subscribe(bufSize int) (<-chan T, error) {
 	defer m.subMu.Unlock()
 	if m.subClosed {
 		sub.close()
-		return sub.ch, ErrClosed
+		return sub.ch, fmt.Errorf("subscribe to memory bus failed: %w", ErrClosed)
 	}
 	m.subscribers = append(m.subscribers, sub)
 	return sub.ch, nil
@@ -104,7 +105,7 @@ func (m *memory[T]) Close(ctx context.Context) error {
 			close(m.abort)
 		})
 		<-m.stopped
-		return ctx.Err()
+		return fmt.Errorf("close memory bus stopped before delivery finished: %w", ctx.Err())
 	}
 }
 

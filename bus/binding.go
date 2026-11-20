@@ -1,6 +1,9 @@
 package bus
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 var binding struct {
 	driver   Driver
@@ -12,7 +15,7 @@ func Use(driver Driver) error {
 	binding.mu.Lock()
 	defer binding.mu.Unlock()
 	if binding.resolved {
-		return ErrInUse
+		return fmt.Errorf("use bus driver failed: %w", ErrInUse)
 	}
 	binding.driver = driver
 	return nil

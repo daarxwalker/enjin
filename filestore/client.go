@@ -49,7 +49,7 @@ func (c *Client) Get(ctx context.Context, key string) (*Object, bool, error) {
 func (c *Client) GetBytes(ctx context.Context, key string) ([]byte, bool, error) {
 	object, exists, err := c.Get(ctx, key)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("get bytes of %q failed: %w", key, err)
 	}
 	if !exists {
 		return nil, false, nil
@@ -81,7 +81,10 @@ func (c *Client) Put(ctx context.Context, key string, body io.Reader, size int64
 }
 
 func (c *Client) PutBytes(ctx context.Context, key string, value []byte, contentType string) error {
-	return c.Put(ctx, key, bytes.NewReader(value), int64(len(value)), contentType)
+	if err := c.Put(ctx, key, bytes.NewReader(value), int64(len(value)), contentType); err != nil {
+		return fmt.Errorf("put bytes of %q failed: %w", key, err)
+	}
+	return nil
 }
 
 func (c *Client) Delete(ctx context.Context, key string) error {

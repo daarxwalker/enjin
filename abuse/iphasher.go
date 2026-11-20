@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -35,6 +36,10 @@ func (h *ipHasher) hashIP(value string, now time.Time) string {
 
 func (h *ipHasher) createSalt() []byte {
 	salt := make([]byte, ipHashSaltLen)
-	_, _ = rand.Read(salt)
+	// Since Go 1.24 crypto/rand.Read crashes the program instead of returning
+	// an error, so this branch is unreachable.
+	if _, err := rand.Read(salt); err != nil {
+		panic(fmt.Errorf("read random ip hash salt failed: %w", err))
+	}
 	return salt
 }

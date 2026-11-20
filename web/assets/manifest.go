@@ -2,6 +2,7 @@ package assets
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -10,21 +11,20 @@ import (
 func LoadManifest(fs fs.FS, path string) (m map[string]string, err error) {
 	file, err := fs.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("open file: %w", err)
+		return nil, fmt.Errorf("open manifest %s failed: %w", path, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			err = fmt.Errorf("close file: %w", closeErr)
+			err = errors.Join(err, fmt.Errorf("close manifest %s failed: %w", path, closeErr))
 		}
 	}()
 	filebts, err := io.ReadAll(file)
 	if err != nil {
-		return nil, fmt.Errorf("read file: %w", err)
+		return nil, fmt.Errorf("read manifest %s failed: %w", path, err)
 	}
 	var manifest map[string]string
-	err = json.Unmarshal(filebts, &manifest)
-	if err != nil {
-		return nil, fmt.Errorf("deserialize content: %w", err)
+	if err = json.Unmarshal(filebts, &manifest); err != nil {
+		return nil, fmt.Errorf("deserialize manifest %s failed: %w", path, err)
 	}
-	return manifest, err
+	return manifest, nil
 }

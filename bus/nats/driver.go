@@ -58,9 +58,12 @@ func NewDriver(ctx context.Context, conn *natssdk.Conn, options ...Option) (*Dri
 func (d *Driver) Publish(ctx context.Context, subject string, data []byte) error {
 	if d.js == nil {
 		if err := ctx.Err(); err != nil {
-			return err
+			return fmt.Errorf("bus: publish %s stopped: %w", subject, err)
 		}
-		return d.publish(subject, data)
+		if err := d.publish(subject, data); err != nil {
+			return fmt.Errorf("bus: publish %s failed: %w", subject, err)
+		}
+		return nil
 	}
 	if _, err := d.js.Publish(ctx, d.subject(subject), data); err != nil {
 		return fmt.Errorf("bus: publish %s failed: %w", subject, err)
@@ -70,11 +73,14 @@ func (d *Driver) Publish(ctx context.Context, subject string, data []byte) error
 
 func (d *Driver) TryPublish(subject string, data []byte) error {
 	if d.js == nil {
-		return d.publish(subject, data)
+		if err := d.publish(subject, data); err != nil {
+			return fmt.Errorf("bus: try publish %s failed: %w", subject, err)
+		}
+		return nil
 	}
 	_, err := d.js.PublishAsync(d.subject(subject), data)
 	if errors.Is(err, jetstream.ErrTooManyStalledMsgs) {
-		return bus.ErrFull
+		return fmt.Errorf("bus: try publish %s failed: %w", subject, bus.ErrFull)
 	}
 	if err != nil {
 		return fmt.Errorf("bus: publish %s failed: %w", subject, err)
@@ -86,16 +92,25 @@ func (d *Driver) Subscribe(
 	subject, queue string,
 	handler func(ctx context.Context, data []byte) error,
 ) (bus.Subscription, error) {
+	var (
+		subscription bus.Subscription
+		err          error
+	)
 	if d.js == nil {
-		return d.subscribe(subject, queue, handler)
+		subscription, err = d.subscribe(subject, queue, handler)
+	} else {
+		subscription, err = d.consume(subject, queue, handler)
 	}
-	return d.consume(subject, queue, handler)
+	if err != nil {
+		return nil, fmt.Errorf("bus: subscribe %s failed: %w", subject, err)
+	}
+	return subscription, nil
 }
 
 func (d *Driver) publish(subject string, data []byte) error {
 	err := d.conn.Publish(d.subject(subject), data)
 	if errors.Is(err, natssdk.ErrReconnectBufExceeded) {
-		return bus.ErrFull
+		return fmt.Errorf("bus: publish %s failed: %w", subject, bus.ErrFull)
 	}
 	if err != nil {
 		return fmt.Errorf("bus: publish %s failed: %w", subject, err)
@@ -140,18 +155,26 @@ func (d *Driver) consume(
 
 func (d *Driver) createConsumer(ctx context.Context, subject, queue string) (jetstream.Consumer, error) {
 	if queue == "" {
-		return d.js.OrderedConsumer(ctx, d.stream, jetstream.OrderedConsumerConfig{
+		consumer, err := d.js.OrderedConsumer(ctx, d.stream, jetstream.OrderedConsumerConfig{
 			FilterSubjects: []string{d.subject(subject)},
 			DeliverPolicy:  jetstream.DeliverNewPolicy,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("bus: create ordered consumer for %s failed: %w", subject, err)
+		}
+		return consumer, nil
 	}
-	return d.js.CreateOrUpdateConsumer(ctx, d.stream, jetstream.ConsumerConfig{
+	consumer, err := d.js.CreateOrUpdateConsumer(ctx, d.stream, jetstream.ConsumerConfig{
 		Durable:       d.durable(subject, queue),
 		FilterSubject: d.subject(subject),
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		DeliverPolicy: jetstream.DeliverNewPolicy,
 		MaxDeliver:    maxDeliver,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("bus: create durable consumer for %s in queue %s failed: %w", subject, queue, err)
+	}
+	return consumer, nil
 }
 
 func (d *Driver) handle(
@@ -197,10 +220,11 @@ func (s *natsSubscription) Close(ctx context.Context) error {
 	case <-closed:
 		return nil
 	case <-ctx.Done():
+		drainErr := fmt.Errorf("bus: drain subscription %s stopped: %w", s.sub.Subject, ctx.Err())
 		if err := s.sub.Unsubscribe(); err != nil && !errors.Is(err, natssdk.ErrBadSubscription) {
-			return errors.Join(ctx.Err(), err)
+			return errors.Join(drainErr, fmt.Errorf("bus: unsubscribe %s failed: %w", s.sub.Subject, err))
 		}
-		return ctx.Err()
+		return drainErr
 	}
 }
 
@@ -215,6 +239,6 @@ func (s *jetStreamSubscription) Close(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		s.consumeCtx.Stop()
-		return ctx.Err()
+		return fmt.Errorf("bus: drain jetstream consumer stopped: %w", ctx.Err())
 	}
 }

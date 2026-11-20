@@ -3,6 +3,7 @@ package minio
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/daarxwalker/enjin/filestore"
@@ -33,7 +34,7 @@ func (d *Driver) List(ctx context.Context, prefix string) ([]filestore.File, err
 		Recursive: true,
 	}) {
 		if info.Err != nil {
-			return nil, info.Err
+			return nil, fmt.Errorf("list objects with prefix %q failed: %w", prefix, info.Err)
 		}
 		files = append(files, d.infoToFile(info))
 	}
@@ -47,7 +48,7 @@ func (d *Driver) Stat(ctx context.Context, key string) (filestore.File, bool, er
 		return zero, false, nil
 	}
 	if err != nil {
-		return zero, false, err
+		return zero, false, fmt.Errorf("stat object %q failed: %w", key, err)
 	}
 	return d.infoToFile(info), true, nil
 }
@@ -55,20 +56,21 @@ func (d *Driver) Stat(ctx context.Context, key string) (filestore.File, bool, er
 func (d *Driver) Get(ctx context.Context, key string) (*filestore.Object, bool, error) {
 	object, err := d.client.GetObject(ctx, d.bucket, key, miniosdk.GetObjectOptions{})
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("get object %q failed: %w", key, err)
 	}
 	info, err := object.Stat()
 	if d.isErrNoSuchKey(err) {
 		if closeErr := object.Close(); closeErr != nil {
-			return nil, false, closeErr
+			return nil, false, fmt.Errorf("close missing object %q failed: %w", key, closeErr)
 		}
 		return nil, false, nil
 	}
 	if err != nil {
+		statErr := fmt.Errorf("stat object %q failed: %w", key, err)
 		if closeErr := object.Close(); closeErr != nil {
-			return nil, false, closeErr
+			return nil, false, errors.Join(statErr, fmt.Errorf("close object %q failed: %w", key, closeErr))
 		}
-		return nil, false, err
+		return nil, false, statErr
 	}
 	return &filestore.Object{Body: object, File: d.infoToFile(info)}, true, nil
 }
@@ -77,11 +79,17 @@ func (d *Driver) Put(ctx context.Context, key string, body io.Reader, size int64
 	_, err := d.client.PutObject(ctx, d.bucket, key, body, size, miniosdk.PutObjectOptions{
 		ContentType: contentType,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("put object %q failed: %w", key, err)
+	}
+	return nil
 }
 
 func (d *Driver) Delete(ctx context.Context, key string) error {
-	return d.client.RemoveObject(ctx, d.bucket, key, miniosdk.RemoveObjectOptions{})
+	if err := d.client.RemoveObject(ctx, d.bucket, key, miniosdk.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("remove object %q failed: %w", key, err)
+	}
+	return nil
 }
 
 func (d *Driver) isErrNoSuchKey(err error) bool {

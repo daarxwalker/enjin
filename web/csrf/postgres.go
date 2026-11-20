@@ -26,17 +26,21 @@ func NewPostgresDriver(querier db.Querier) *PostgresDriver {
 // Add removes expired tokens by the application clock, the same clock that
 // computes expiresAt and the now of Take, as the Redis driver does.
 func (d *PostgresDriver) Add(ctx context.Context, key, token string, expiresAt time.Time, limit int) error {
-	batch := &pgx.Batch{}
+	var batch pgx.Batch
 	batch.Queue(lockKeySQL, key)
 	batch.Queue(deleteExpiredEntriesSQL, key, time.Now())
 	batch.Queue(upsertEntrySQL, key, token, expiresAt)
 	batch.Queue(deleteEntriesOverLimitSQL, key, max(limit, 1))
-	return db.WithTx(ctx, d.querier, "add csrf token", func(tx pgx.Tx) error {
-		if err := tx.SendBatch(ctx, batch).Close(); err != nil {
-			return fmt.Errorf("send csrf token batch failed: %w", err)
+	err := db.WithTx(ctx, d.querier, "add csrf token", func(tx pgx.Tx) error {
+		if sendErr := tx.SendBatch(ctx, &batch).Close(); sendErr != nil {
+			return fmt.Errorf("send csrf token batch failed: %w", sendErr)
 		}
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("add csrf token for %q failed: %w", key, err)
+	}
+	return nil
 }
 
 func (d *PostgresDriver) Take(ctx context.Context, key, token string, now time.Time) (bool, error) {
@@ -46,7 +50,7 @@ func (d *PostgresDriver) Take(ctx context.Context, key, token string, now time.T
 		return false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("take csrf token for %q failed: %w", key, err)
 	}
 	return expiresAt.After(now), nil
 }

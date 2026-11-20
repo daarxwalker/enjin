@@ -165,7 +165,9 @@ func TestClientOutage(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: server.Addr(), MaxRetries: -1})
-	t.Cleanup(func() { _ = rdb.Close() })
+	t.Cleanup(func() {
+		_ = rdb.Close()
+	})
 	client := cache.NewClient(cache.NewRedisDriver(rdb))
 	server.Close()
 

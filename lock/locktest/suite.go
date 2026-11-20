@@ -28,12 +28,24 @@ type Subject struct {
 // RunDriverSuite checks that a Driver behaves like the Redis one. Every case
 // uses its own keys, so the store may be shared with other tests.
 func RunDriverSuite(t *testing.T, subject Subject) {
-	t.Run("lock and unlock", func(t *testing.T) { checkLockAndUnlock(t, subject.Driver) })
-	t.Run("held lock rejects everyone", func(t *testing.T) { checkHeldLock(t, subject.Driver) })
-	t.Run("unlock needs the owner token", func(t *testing.T) { checkForeignUnlock(t, subject.Driver) })
-	t.Run("unlock of a free key", func(t *testing.T) { checkUnlockFree(t, subject.Driver) })
-	t.Run("expired lock is free", func(t *testing.T) { checkExpiredLock(t, subject) })
-	t.Run("concurrent lock has one winner", func(t *testing.T) { checkConcurrentLock(t, subject.Driver) })
+	t.Run("lock and unlock", func(t *testing.T) {
+		checkLockAndUnlock(t, subject.Driver)
+	})
+	t.Run("held lock rejects everyone", func(t *testing.T) {
+		checkHeldLock(t, subject.Driver)
+	})
+	t.Run("unlock needs the owner token", func(t *testing.T) {
+		checkForeignUnlock(t, subject.Driver)
+	})
+	t.Run("unlock of a free key", func(t *testing.T) {
+		checkUnlockFree(t, subject.Driver)
+	})
+	t.Run("expired lock is free", func(t *testing.T) {
+		checkExpiredLock(t, subject)
+	})
+	t.Run("concurrent lock has one winner", func(t *testing.T) {
+		checkConcurrentLock(t, subject.Driver)
+	})
 }
 
 func checkLockAndUnlock(t *testing.T, driver lock.Driver) {
@@ -76,8 +88,11 @@ func checkExpiredLock(t *testing.T, subject Subject) {
 func checkConcurrentLock(t *testing.T, driver lock.Driver) {
 	ctx := t.Context()
 	key := "suite:concurrent"
-	var locked, failures atomic.Int32
-	var wg sync.WaitGroup
+	var (
+		locked   atomic.Int32
+		failures atomic.Int32
+		wg       sync.WaitGroup
+	)
 	for i := range concurrency {
 		wg.Go(func() {
 			ok, err := driver.TryLock(ctx, key, fmt.Sprintf("owner-%d", i), longTTL)

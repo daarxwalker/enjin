@@ -243,6 +243,23 @@ files, err := store.List(ctx, "images/")
 err = store.Delete(ctx, "images/a.png")
 ```
 
+Local disk (`filestore/disk`, no extra service):
+
+```go
+diskDriver, err := disk.NewDriver("/var/lib/myapp/files")
+defer diskDriver.Close()
+store := filestore.NewClient(diskDriver)
+```
+
+- Files live at `<dir>/<key>`, content type and ETag (SHA-256) in
+  `<dir>/.meta/<key>.json`. A file copied in by hand still works: the type
+  comes from its extension.
+- Everything goes through `os.Root`: no key (`../x`, `/abs`) and no symlink
+  reaches outside the directory; such keys fail with `disk.ErrInvalidKey`.
+- Writes are atomic and serialized per key within one process; Delete removes
+  directories that become empty.
+- Unlike S3, a key cannot be both a file and a directory (`a` and `a/b`).
+
 ## client
 
 Anonymous browser identity (`X-Client` cookie) with a per-client key/value store.

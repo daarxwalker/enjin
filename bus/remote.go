@@ -29,26 +29,32 @@ func (r *remote[T]) Publish(ctx context.Context, message T) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.closed {
-		return ErrClosed
+		return fmt.Errorf("bus: publish %s failed: %w", r.route.subject, ErrClosed)
 	}
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("bus: encode %s failed: %w", r.route.subject, err)
 	}
-	return r.driver.Publish(ctx, r.route.subject, data)
+	if err = r.driver.Publish(ctx, r.route.subject, data); err != nil {
+		return fmt.Errorf("bus: publish %s failed: %w", r.route.subject, err)
+	}
+	return nil
 }
 
 func (r *remote[T]) TryPublish(message T) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.closed {
-		return ErrClosed
+		return fmt.Errorf("bus: try publish %s failed: %w", r.route.subject, ErrClosed)
 	}
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("bus: encode %s failed: %w", r.route.subject, err)
 	}
-	return r.driver.TryPublish(r.route.subject, data)
+	if err = r.driver.TryPublish(r.route.subject, data); err != nil {
+		return fmt.Errorf("bus: try publish %s failed: %w", r.route.subject, err)
+	}
+	return nil
 }
 
 func (r *remote[T]) Subscribe(bufSize int) (<-chan T, error) {
@@ -63,7 +69,11 @@ func (r *remote[T]) Subscribe(bufSize int) (<-chan T, error) {
 		}
 		r.subscription = subscription
 	}
-	return r.local.Subscribe(bufSize)
+	ch, err := r.local.Subscribe(bufSize)
+	if err != nil {
+		return ch, fmt.Errorf("bus: subscribe %s locally failed: %w", r.route.subject, err)
+	}
+	return ch, nil
 }
 
 func (r *remote[T]) Unsubscribe(ch <-chan T) {
@@ -76,11 +86,19 @@ func (r *remote[T]) Close(ctx context.Context) error {
 	subscription := r.subscription
 	r.subscription = nil
 	r.mu.Unlock()
-	var drainErr error
+	var (
+		drainErr error
+		localErr error
+	)
 	if subscription != nil {
-		drainErr = subscription.Close(ctx)
+		if err := subscription.Close(ctx); err != nil {
+			drainErr = fmt.Errorf("bus: drain subscription of %s failed: %w", r.route.subject, err)
+		}
 	}
-	return errors.Join(drainErr, r.local.Close(ctx))
+	if err := r.local.Close(ctx); err != nil {
+		localErr = fmt.Errorf("bus: close local delivery of %s failed: %w", r.route.subject, err)
+	}
+	return errors.Join(drainErr, localErr)
 }
 
 func (r *remote[T]) receive(ctx context.Context, data []byte) error {
@@ -88,5 +106,8 @@ func (r *remote[T]) receive(ctx context.Context, data []byte) error {
 	if err := json.Unmarshal(data, &message); err != nil {
 		return fmt.Errorf("bus: decode %s failed: %w", r.route.subject, err)
 	}
-	return r.local.Publish(ctx, message)
+	if err := r.local.Publish(ctx, message); err != nil {
+		return fmt.Errorf("bus: deliver %s locally failed: %w", r.route.subject, err)
+	}
+	return nil
 }

@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/daarxwalker/enjin/token"
@@ -14,7 +15,7 @@ const (
 func getTokenFromCookie(r *http.Request, cookieName string) (string, error) {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil && !errors.Is(err, http.ErrNoCookie) {
-		return "", err
+		return "", fmt.Errorf("read cookie %s failed: %w", cookieName, err)
 	}
 	if cookie == nil || !token.Valid(cookie.Value) {
 		return "", nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -26,7 +27,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	api, err := newAPI(ctx, rdb, logger, app.WithPort(port), app.WithCleanup(func(context.Context) error { return rdb.Close() }))
+	api, err := newAPI(
+		ctx,
+		rdb,
+		logger,
+		app.WithPort(port),
+		app.WithCleanup(func(context.Context) error {
+			if closeErr := rdb.Close(); closeErr != nil {
+				return fmt.Errorf("close redis client failed: %w", closeErr)
+			}
+			return nil
+		}),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}

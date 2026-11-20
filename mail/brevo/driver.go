@@ -68,7 +68,7 @@ func (d *Driver) Send(ctx context.Context, envelope mail.Envelope, raw []byte) (
 	if res.StatusCode == http.StatusCreated || res.StatusCode == http.StatusAccepted {
 		return nil
 	}
-	return d.readError(res)
+	return fmt.Errorf("send brevo email failed: %w", d.readError(res))
 }
 
 func (d *Driver) readError(res *http.Response) error {

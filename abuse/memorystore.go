@@ -2,6 +2,7 @@ package abuse
 
 import (
 	"context"
+	"fmt"
 	"hash/maphash"
 	"sync"
 	"sync/atomic"
@@ -86,7 +87,7 @@ func NewMemoryStore(ctx context.Context, options ...MemoryStoreOption) *MemorySt
 
 func (s *MemoryStore) HitCounter(key Key, window time.Duration, now time.Time) (int, error) {
 	if window <= 0 {
-		return 0, ErrInvalidWindow
+		return 0, fmt.Errorf("count hits of %v in window %s failed: %w", key, window, ErrInvalidWindow)
 	}
 	shard := s.selectShard(key)
 	shard.mu.Lock()
@@ -116,7 +117,7 @@ func (s *MemoryStore) HitCounter(key Key, window time.Duration, now time.Time) (
 
 func (s *MemoryStore) CountDistinct(key Key, member string, limit int, window time.Duration, now time.Time) (int, error) {
 	if window <= 0 {
-		return 0, ErrInvalidWindow
+		return 0, fmt.Errorf("count distinct members of %v in window %s failed: %w", key, window, ErrInvalidWindow)
 	}
 	shard := s.selectShard(key)
 	shard.mu.Lock()

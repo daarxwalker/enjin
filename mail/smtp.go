@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/smtp"
@@ -108,8 +109,10 @@ func (d *SMTPDriver) Send(ctx context.Context, envelope Envelope, raw []byte) er
 	if err != nil {
 		return fmt.Errorf("dial smtp server failed: %w", err)
 	}
-	defer func() { _ = conn.Close() }()
-	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer d.closeAfterSend(ctx, conn, "connection")
+	stop := context.AfterFunc(ctx, func() {
+		d.closeAfterSend(ctx, conn, "connection on timeout")
+	})
 	defer stop()
 	if err = d.sendMail(ctx, conn, envelope, raw); err != nil {
 		return fmt.Errorf("send smtp mail failed: %w", errors.Join(err, ctx.Err()))
@@ -120,10 +123,18 @@ func (d *SMTPDriver) Send(ctx context.Context, envelope Envelope, raw []byte) er
 func (d *SMTPDriver) dial(ctx context.Context) (net.Conn, error) {
 	if d.encryption == SMTPEncryptionImplicitTLS {
 		dialer := tls.Dialer{Config: d.tlsConfig}
-		return dialer.DialContext(ctx, "tcp", d.addr)
+		conn, err := dialer.DialContext(ctx, "tcp", d.addr)
+		if err != nil {
+			return nil, fmt.Errorf("dial smtp server %s over tls failed: %w", d.addr, err)
+		}
+		return conn, nil
 	}
 	var dialer net.Dialer
-	return dialer.DialContext(ctx, "tcp", d.addr)
+	conn, err := dialer.DialContext(ctx, "tcp", d.addr)
+	if err != nil {
+		return nil, fmt.Errorf("dial smtp server %s failed: %w", d.addr, err)
+	}
+	return conn, nil
 }
 
 func (d *SMTPDriver) sendMail(ctx context.Context, conn net.Conn, envelope Envelope, raw []byte) error {
@@ -131,15 +142,15 @@ func (d *SMTPDriver) sendMail(ctx context.Context, conn net.Conn, envelope Envel
 	if err != nil {
 		return fmt.Errorf("create smtp client failed: %w", err)
 	}
-	defer func() { _ = client.Close() }()
+	defer d.closeAfterSend(ctx, client, "client")
 	if err = client.Hello(d.helo); err != nil {
 		return fmt.Errorf("greet smtp server failed: %w", err)
 	}
 	if err = d.startTLS(client); err != nil {
-		return err
+		return fmt.Errorf("secure smtp connection failed: %w", err)
 	}
 	if err = d.authenticate(ctx, client); err != nil {
-		return err
+		return fmt.Errorf("authenticate smtp client failed: %w", err)
 	}
 	if err = client.Mail(envelope.From); err != nil {
 		return fmt.Errorf("set sender failed: %w", err)
@@ -169,6 +180,14 @@ func (d *SMTPDriver) sendMail(ctx context.Context, conn net.Conn, envelope Envel
 		)
 	}
 	return nil
+}
+
+// closeAfterSend only logs: Send must not fail once the message is accepted.
+// QUIT already closes the connection, so net.ErrClosed is the expected outcome.
+func (d *SMTPDriver) closeAfterSend(ctx context.Context, closer io.Closer, name string) {
+	if err := closer.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		d.log.WarnContext(ctx, fmt.Sprintf("close smtp %s failed: %v", name, err), "addr", d.addr)
+	}
 }
 
 func (d *SMTPDriver) startTLS(client *smtp.Client) error {
@@ -202,7 +221,7 @@ func (d *SMTPDriver) authenticate(ctx context.Context, client *smtp.Client) erro
 	_, encrypted := client.TLSConnectionState()
 	auth, err := d.createAuth(ctx, mechanisms, encrypted || d.isLocalHost())
 	if err != nil {
-		return err
+		return fmt.Errorf("choose smtp auth mechanism failed: %w", err)
 	}
 	if err = client.Auth(auth); err != nil {
 		return fmt.Errorf("authenticate failed: %w", err)

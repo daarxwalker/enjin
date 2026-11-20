@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -75,7 +76,7 @@ func newAPI(ctx context.Context, rdb *redis.Client, logger *slog.Logger, options
 		)...,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create api engine failed: %w", err)
 	}
 	mountAuth(engine.Router, store)
 	mountProducts(engine.Router, newProductRepo())

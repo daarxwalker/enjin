@@ -32,18 +32,42 @@ type Subject struct {
 // RunDriverSuite checks that a Driver behaves like the Redis one. Every case
 // uses its own keys, so the store may be shared with other tests.
 func RunDriverSuite(t *testing.T, subject Subject) {
-	t.Run("missing key", func(t *testing.T) { checkMissingKey(t, subject.Driver) })
-	t.Run("set and get", func(t *testing.T) { checkSetAndGet(t, subject.Driver) })
-	t.Run("set replaces value and ttl", func(t *testing.T) { checkSetReplaces(t, subject.Driver) })
-	t.Run("expired key is missing", func(t *testing.T) { checkExpiredKey(t, subject) })
-	t.Run("take returns value once", func(t *testing.T) { checkTake(t, subject.Driver) })
-	t.Run("update expiration", func(t *testing.T) { checkUpdateExpiration(t, subject.Driver) })
-	t.Run("delete", func(t *testing.T) { checkDelete(t, subject.Driver) })
-	t.Run("increment", func(t *testing.T) { checkIncrement(t, subject.Driver) })
-	t.Run("increment after expiry starts again", func(t *testing.T) { checkIncrementAfterExpiry(t, subject) })
-	t.Run("increment rejects a non integer", func(t *testing.T) { checkIncrementNonInteger(t, subject.Driver) })
-	t.Run("concurrent increment", func(t *testing.T) { checkConcurrentIncrement(t, subject.Driver) })
-	t.Run("concurrent take", func(t *testing.T) { checkConcurrentTake(t, subject.Driver) })
+	t.Run("missing key", func(t *testing.T) {
+		checkMissingKey(t, subject.Driver)
+	})
+	t.Run("set and get", func(t *testing.T) {
+		checkSetAndGet(t, subject.Driver)
+	})
+	t.Run("set replaces value and ttl", func(t *testing.T) {
+		checkSetReplaces(t, subject.Driver)
+	})
+	t.Run("expired key is missing", func(t *testing.T) {
+		checkExpiredKey(t, subject)
+	})
+	t.Run("take returns value once", func(t *testing.T) {
+		checkTake(t, subject.Driver)
+	})
+	t.Run("update expiration", func(t *testing.T) {
+		checkUpdateExpiration(t, subject.Driver)
+	})
+	t.Run("delete", func(t *testing.T) {
+		checkDelete(t, subject.Driver)
+	})
+	t.Run("increment", func(t *testing.T) {
+		checkIncrement(t, subject.Driver)
+	})
+	t.Run("increment after expiry starts again", func(t *testing.T) {
+		checkIncrementAfterExpiry(t, subject)
+	})
+	t.Run("increment rejects a non integer", func(t *testing.T) {
+		checkIncrementNonInteger(t, subject.Driver)
+	})
+	t.Run("concurrent increment", func(t *testing.T) {
+		checkConcurrentIncrement(t, subject.Driver)
+	})
+	t.Run("concurrent take", func(t *testing.T) {
+		checkConcurrentTake(t, subject.Driver)
+	})
 }
 
 func checkMissingKey(t *testing.T, driver cache.Driver) {
@@ -281,8 +305,10 @@ func checkIncrementNonInteger(t *testing.T, driver cache.Driver) {
 func checkConcurrentIncrement(t *testing.T, driver cache.Driver) {
 	ctx := t.Context()
 	key := "suite:incr:concurrent"
-	var failures atomic.Int32
-	var wg sync.WaitGroup
+	var (
+		failures atomic.Int32
+		wg       sync.WaitGroup
+	)
 	for range concurrency {
 		wg.Go(func() {
 			if _, err := driver.Increment(ctx, key, 1, longTTL); err != nil {
@@ -304,8 +330,11 @@ func checkConcurrentTake(t *testing.T, driver cache.Driver) {
 	key := "suite:take:concurrent"
 	require.NoError(t, driver.Set(ctx, key, []byte("once"), longTTL))
 
-	var taken, failures atomic.Int32
-	var wg sync.WaitGroup
+	var (
+		taken    atomic.Int32
+		failures atomic.Int32
+		wg       sync.WaitGroup
+	)
 	for range concurrency {
 		wg.Go(func() {
 			_, exists, err := driver.Take(ctx, key)

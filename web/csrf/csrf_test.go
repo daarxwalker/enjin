@@ -333,7 +333,9 @@ func (c *inputClient) token() string {
 	c.t.Helper()
 	res, err := c.http.Get(c.endpoint)
 	require.NoError(c.t, err)
-	defer func() { _ = res.Body.Close() }()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(c.t, err)
 	require.Equal(c.t, http.StatusOK, res.StatusCode)

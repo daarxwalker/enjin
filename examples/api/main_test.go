@@ -18,7 +18,9 @@ import (
 
 func TestAPI(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	t.Cleanup(func() {
+		_ = rdb.Close()
+	})
 	api, err := newAPI(context.Background(), rdb, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	h := api.engine.Root.Raw()

@@ -47,7 +47,7 @@ func (s *Spec) AddOperation(method, pattern string, operation routespec.Operatio
 		})
 	}
 	if err = s.applyParams(op, operation.Params); err != nil {
-		return err
+		return fmt.Errorf("apply params of %s %s failed: %w", method, pattern, err)
 	}
 	for _, security := range operation.Security {
 		op.AddSecurity(security.Name, security.Scopes...)
@@ -59,7 +59,11 @@ func (s *Spec) AddOperation(method, pattern string, operation routespec.Operatio
 }
 
 func (s *Spec) MarshalJSON() ([]byte, error) {
-	return s.reflector.Spec.MarshalJSON()
+	raw, err := s.reflector.Spec.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("marshal openapi spec failed: %w", err)
+	}
+	return raw, nil
 }
 
 func (s *Spec) applyInfo(op openapigo.OperationContext, operation routespec.Operation) {

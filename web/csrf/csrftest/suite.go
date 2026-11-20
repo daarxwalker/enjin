@@ -17,14 +17,30 @@ const concurrency = 20
 // RunDriverSuite checks that a Driver behaves like the Redis one. Every case
 // uses its own keys, so the store may be shared with other tests.
 func RunDriverSuite(t *testing.T, driver csrf.Driver) {
-	t.Run("take returns a token once", func(t *testing.T) { checkTakeOnce(t, driver) })
-	t.Run("unknown token", func(t *testing.T) { checkUnknownToken(t, driver) })
-	t.Run("expired token is removed", func(t *testing.T) { checkExpiredToken(t, driver) })
-	t.Run("limit keeps the newest tokens", func(t *testing.T) { checkLimit(t, driver) })
-	t.Run("limit below one keeps one token", func(t *testing.T) { checkLimitBelowOne(t, driver) })
-	t.Run("keys are independent", func(t *testing.T) { checkIndependentKeys(t, driver) })
-	t.Run("concurrent take", func(t *testing.T) { checkConcurrentTake(t, driver) })
-	t.Run("concurrent add keeps the limit", func(t *testing.T) { checkConcurrentAdd(t, driver) })
+	t.Run("take returns a token once", func(t *testing.T) {
+		checkTakeOnce(t, driver)
+	})
+	t.Run("unknown token", func(t *testing.T) {
+		checkUnknownToken(t, driver)
+	})
+	t.Run("expired token is removed", func(t *testing.T) {
+		checkExpiredToken(t, driver)
+	})
+	t.Run("limit keeps the newest tokens", func(t *testing.T) {
+		checkLimit(t, driver)
+	})
+	t.Run("limit below one keeps one token", func(t *testing.T) {
+		checkLimitBelowOne(t, driver)
+	})
+	t.Run("keys are independent", func(t *testing.T) {
+		checkIndependentKeys(t, driver)
+	})
+	t.Run("concurrent take", func(t *testing.T) {
+		checkConcurrentTake(t, driver)
+	})
+	t.Run("concurrent add keeps the limit", func(t *testing.T) {
+		checkConcurrentAdd(t, driver)
+	})
 }
 
 func checkTakeOnce(t *testing.T, driver csrf.Driver) {
@@ -92,8 +108,11 @@ func checkConcurrentTake(t *testing.T, driver csrf.Driver) {
 	now := time.Now()
 	require.NoError(t, driver.Add(ctx, key, "token", now.Add(time.Hour), 5))
 
-	var taken, failures atomic.Int32
-	var wg sync.WaitGroup
+	var (
+		taken    atomic.Int32
+		failures atomic.Int32
+		wg       sync.WaitGroup
+	)
 	for range concurrency {
 		wg.Go(func() {
 			ok, err := driver.Take(ctx, key, "token", now)
@@ -116,8 +135,10 @@ func checkConcurrentAdd(t *testing.T, driver csrf.Driver) {
 	limit := 5
 	now := time.Now()
 
-	var failures atomic.Int32
-	var wg sync.WaitGroup
+	var (
+		failures atomic.Int32
+		wg       sync.WaitGroup
+	)
 	for i := range concurrency {
 		wg.Go(func() {
 			expiresAt := now.Add(time.Hour + time.Duration(i)*time.Second)

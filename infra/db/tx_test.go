@@ -40,7 +40,9 @@ func (q *fakeQuerier) Begin(context.Context) (pgx.Tx, error) {
 func TestWithTx(t *testing.T) {
 	t.Run("commit", func(t *testing.T) {
 		tx := &fakeTx{}
-		if err := db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error { return nil }); err != nil {
+		if err := db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+			return nil
+		}); err != nil {
 			t.Fatalf("err = %v, want nil", err)
 		}
 		if !tx.committed || tx.rolledBack {
@@ -52,7 +54,9 @@ func TestWithTx(t *testing.T) {
 		fnErr := errors.New("fn failed")
 		rbErr := errors.New("rollback failed")
 		tx := &fakeTx{rollbackErr: rbErr}
-		err := db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error { return fnErr })
+		err := db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+			return fnErr
+		})
 		if !tx.rolledBack {
 			t.Fatal("tx not rolled back")
 		}
@@ -74,7 +78,9 @@ func TestWithTx(t *testing.T) {
 				t.Fatalf("committed = %v, rolledBack = %v", tx.committed, tx.rolledBack)
 			}
 		}()
-		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error { panic("boom") })
+		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+			panic("boom")
+		})
 	})
 
 	t.Run("panic with failed rollback keeps the panic", func(t *testing.T) {
@@ -87,7 +93,9 @@ func TestWithTx(t *testing.T) {
 				t.Fatalf("recovered = %v, want both panic and rollback errors", err)
 			}
 		}()
-		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error { panic(panicErr) })
+		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+			panic(panicErr)
+		})
 	})
 
 	t.Run("non error panic with failed rollback keeps its value", func(t *testing.T) {
@@ -99,6 +107,8 @@ func TestWithTx(t *testing.T) {
 				t.Fatalf("recovered = %v, want boom with rollback error", err)
 			}
 		}()
-		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error { panic("boom") })
+		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+			panic("boom")
+		})
 	})
 }

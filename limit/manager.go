@@ -77,16 +77,19 @@ func (m *Manager) ResetIn(ctx context.Context) time.Duration {
 func (m *Manager) Consume(ctx context.Context) (bool, error) {
 	s, ok := m.stateFrom(ctx)
 	if !ok {
-		return false, ErrNotLoaded
+		return false, fmt.Errorf("consume limit %s failed: %w", m.name, ErrNotLoaded)
 	}
 	_, allowed, err := m.consume(ctx, s.cacheKey)
-	return allowed, err
+	if err != nil {
+		return false, fmt.Errorf("consume limit %s failed: %w", m.name, err)
+	}
+	return allowed, nil
 }
 
 func (m *Manager) Revert(ctx context.Context) error {
 	s, ok := m.stateFrom(ctx)
 	if !ok {
-		return ErrNotLoaded
+		return fmt.Errorf("revert limit %s failed: %w", m.name, ErrNotLoaded)
 	}
 	if _, err := m.cache.Increment(ctx, s.cacheKey, -1, m.ttl); err != nil {
 		return fmt.Errorf("revert limit failed: %w", err)

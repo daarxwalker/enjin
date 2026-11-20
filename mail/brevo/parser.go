@@ -39,17 +39,17 @@ func (p parser) parse(envelope mail.Envelope, raw []byte) (emailAPIRow, error) {
 	}
 	email.Sender = contactAPIRow{Email: from.Address, Name: from.Name}
 	if email.To, err = p.parseContacts(message.Header, "To"); err != nil {
-		return zero, err
+		return zero, fmt.Errorf("parse recipients failed: %w", err)
 	}
 	if email.Cc, err = p.parseContacts(message.Header, "Cc"); err != nil {
-		return zero, err
+		return zero, fmt.Errorf("parse copy recipients failed: %w", err)
 	}
 	replyTo, err := p.parseContacts(message.Header, "Reply-To")
 	if err != nil {
-		return zero, err
+		return zero, fmt.Errorf("parse reply-to failed: %w", err)
 	}
 	if len(replyTo) > 1 {
-		return zero, ErrMultipleReplyTo
+		return zero, fmt.Errorf("parse reply-to failed: %w", ErrMultipleReplyTo)
 	}
 	if len(replyTo) == 1 {
 		email.ReplyTo = replyTo[0]
@@ -59,7 +59,7 @@ func (p parser) parse(envelope mail.Envelope, raw []byte) (emailAPIRow, error) {
 		return zero, fmt.Errorf("decode subject failed: %w", err)
 	}
 	if email, err = p.readPart(textproto.MIMEHeader(message.Header), message.Body, email); err != nil {
-		return zero, err
+		return zero, fmt.Errorf("read message body failed: %w", err)
 	}
 	return email, nil
 }
@@ -108,10 +108,14 @@ func (p parser) readPart(header textproto.MIMEHeader, body io.Reader, email emai
 		return zero, fmt.Errorf("parse content type failed: %w", err)
 	}
 	if strings.HasPrefix(mediaType, "multipart/") {
-		return p.readMultipart(params["boundary"], body, email)
+		multipartEmail, multipartErr := p.readMultipart(params["boundary"], body, email)
+		if multipartErr != nil {
+			return zero, fmt.Errorf("read %s part failed: %w", mediaType, multipartErr)
+		}
+		return multipartEmail, nil
 	}
 	if header.Get("Content-ID") != "" {
-		return zero, ErrEmbedsUnsupported
+		return zero, fmt.Errorf("read %s part failed: %w", mediaType, ErrEmbedsUnsupported)
 	}
 	content, err := p.decodeBody(header.Get("Content-Transfer-Encoding"), body)
 	if err != nil {
@@ -119,7 +123,7 @@ func (p parser) readPart(header textproto.MIMEHeader, body io.Reader, email emai
 	}
 	disposition, dispositionParams, err := p.parseDisposition(header.Get("Content-Disposition"))
 	if err != nil {
-		return zero, err
+		return zero, fmt.Errorf("read %s disposition failed: %w", mediaType, err)
 	}
 	switch {
 	case disposition == "attachment":
@@ -152,7 +156,7 @@ func (p parser) readMultipart(boundary string, body io.Reader, email emailAPIRow
 			return zero, fmt.Errorf("read multipart part failed: %w", err)
 		}
 		if email, err = p.readPart(child.Header, child, email); err != nil {
-			return zero, err
+			return zero, fmt.Errorf("read multipart child failed: %w", err)
 		}
 	}
 }
@@ -169,12 +173,18 @@ func (p parser) parseDisposition(value string) (string, map[string]string, error
 }
 
 func (p parser) decodeBody(encoding string, body io.Reader) ([]byte, error) {
+	var decoded io.Reader
 	switch strings.ToLower(encoding) {
 	case "quoted-printable":
-		return io.ReadAll(quotedprintable.NewReader(body))
+		decoded = quotedprintable.NewReader(body)
 	case "base64":
-		return io.ReadAll(base64.NewDecoder(base64.StdEncoding, body))
+		decoded = base64.NewDecoder(base64.StdEncoding, body)
 	default:
-		return io.ReadAll(body)
+		decoded = body
 	}
+	content, err := io.ReadAll(decoded)
+	if err != nil {
+		return nil, fmt.Errorf("read body with transfer encoding %q failed: %w", encoding, err)
+	}
+	return content, nil
 }

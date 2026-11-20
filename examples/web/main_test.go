@@ -20,7 +20,9 @@ var csrfInput = regexp.MustCompile(`name="__csrf__" value="([^"]+)"`)
 
 func TestWeb(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	t.Cleanup(func() {
+		_ = rdb.Close()
+	})
 	engine, err := newWeb(context.Background(), rdb, slog.New(slog.DiscardHandler), false)
 	require.NoError(t, err)
 	srv := httptest.NewServer(engine.Root.Raw())
@@ -66,7 +68,9 @@ func (b *browser) home() string {
 	b.t.Helper()
 	res, err := b.http.Get(b.url + "/")
 	require.NoError(b.t, err)
-	defer func() { _ = res.Body.Close() }()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 	return b.read(res)
 }
 
@@ -74,7 +78,9 @@ func (b *browser) post(form url.Values) string {
 	b.t.Helper()
 	res, err := b.http.PostForm(b.url+"/", form)
 	require.NoError(b.t, err)
-	defer func() { _ = res.Body.Close() }()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 	return b.read(res)
 }
 

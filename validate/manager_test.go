@@ -106,7 +106,9 @@ func (c *testClient) get(path string) []byte {
 	c.t.Helper()
 	res, err := c.http.Get(c.url + path)
 	require.NoError(c.t, err)
-	defer func() { _ = res.Body.Close() }()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(c.t, err)
 	return body

@@ -21,17 +21,39 @@ type Subject struct {
 // RunDriverSuite checks that a Driver behaves like the MinIO one. Every case
 // uses its own key prefix, so the store may be shared with other tests.
 func RunDriverSuite(t *testing.T, subject Subject) {
-	t.Run("put and get", func(t *testing.T) { checkPutAndGet(t, subject.Driver) })
-	t.Run("stat", func(t *testing.T) { checkStat(t, subject.Driver) })
-	t.Run("missing file", func(t *testing.T) { checkMissing(t, subject.Driver) })
-	t.Run("content type is kept", func(t *testing.T) { checkContentType(t, subject) })
-	t.Run("overwrite", func(t *testing.T) { checkOverwrite(t, subject.Driver) })
-	t.Run("put with unknown size", func(t *testing.T) { checkUnknownSize(t, subject.Driver) })
-	t.Run("large file", func(t *testing.T) { checkLargeFile(t, subject.Driver) })
-	t.Run("key with spaces and diacritics", func(t *testing.T) { checkUnicodeKey(t, subject.Driver) })
-	t.Run("list by prefix", func(t *testing.T) { checkListByPrefix(t, subject.Driver) })
-	t.Run("list without match", func(t *testing.T) { checkListWithoutMatch(t, subject.Driver) })
-	t.Run("delete", func(t *testing.T) { checkDelete(t, subject.Driver) })
+	t.Run("put and get", func(t *testing.T) {
+		checkPutAndGet(t, subject.Driver)
+	})
+	t.Run("stat", func(t *testing.T) {
+		checkStat(t, subject.Driver)
+	})
+	t.Run("missing file", func(t *testing.T) {
+		checkMissing(t, subject.Driver)
+	})
+	t.Run("content type is kept", func(t *testing.T) {
+		checkContentType(t, subject)
+	})
+	t.Run("overwrite", func(t *testing.T) {
+		checkOverwrite(t, subject.Driver)
+	})
+	t.Run("put with unknown size", func(t *testing.T) {
+		checkUnknownSize(t, subject.Driver)
+	})
+	t.Run("large file", func(t *testing.T) {
+		checkLargeFile(t, subject.Driver)
+	})
+	t.Run("key with spaces and diacritics", func(t *testing.T) {
+		checkUnicodeKey(t, subject.Driver)
+	})
+	t.Run("list by prefix", func(t *testing.T) {
+		checkListByPrefix(t, subject.Driver)
+	})
+	t.Run("list without match", func(t *testing.T) {
+		checkListWithoutMatch(t, subject.Driver)
+	})
+	t.Run("delete", func(t *testing.T) {
+		checkDelete(t, subject.Driver)
+	})
 }
 
 func checkPutAndGet(t *testing.T, driver filestore.Driver) {

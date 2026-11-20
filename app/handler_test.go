@@ -24,8 +24,10 @@ func TestDefaultHandler(t *testing.T) {
 		stack    bool
 	}{
 		{
-			name:     "internal",
-			fn:       func(_ http.ResponseWriter, _ *http.Request) error { return errors.New("secret db detail") },
+			name: "internal",
+			fn: func(_ http.ResponseWriter, _ *http.Request) error {
+				return errors.New("secret db detail")
+			},
 			status:   http.StatusInternalServerError,
 			body:     http.StatusText(http.StatusInternalServerError),
 			hidden:   "secret",
@@ -41,8 +43,10 @@ func TestDefaultHandler(t *testing.T) {
 			body:   "bad input",
 		},
 		{
-			name:   "status only",
-			fn:     func(_ http.ResponseWriter, _ *http.Request) error { return httpx.StatusError(http.StatusNotFound) },
+			name: "status only",
+			fn: func(_ http.ResponseWriter, _ *http.Request) error {
+				return httpx.StatusError(http.StatusNotFound)
+			},
 			status: http.StatusNotFound,
 			body:   http.StatusText(http.StatusNotFound),
 		},
@@ -58,8 +62,10 @@ func TestDefaultHandler(t *testing.T) {
 			logLines: 1,
 		},
 		{
-			name:     "panic",
-			fn:       func(_ http.ResponseWriter, _ *http.Request) error { panic("boom") },
+			name: "panic",
+			fn: func(_ http.ResponseWriter, _ *http.Request) error {
+				panic("boom")
+			},
 			status:   http.StatusInternalServerError,
 			body:     http.StatusText(http.StatusInternalServerError),
 			hidden:   "boom",

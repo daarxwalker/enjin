@@ -101,7 +101,7 @@ func (m *TurnstileDriver) callVerificationEndpoint(
 	}
 	defer func() {
 		if closeErr := res.Body.Close(); closeErr != nil {
-			err = fmt.Errorf("cf turnstile verification close body failed: %w", closeErr)
+			err = errors.Join(err, fmt.Errorf("close cf turnstile verification body failed: %w", closeErr))
 		}
 	}()
 
@@ -119,8 +119,8 @@ func (m *TurnstileDriver) callVerificationEndpoint(
 		for _, e := range result.Errors {
 			errs = append(errs, errors.New(e))
 		}
-		err = errors.Join(errs...)
+		return result.Success, fmt.Errorf("cf turnstile verification reported errors: %w", errors.Join(errs...))
 	}
 
-	return result.Success, err
+	return result.Success, nil
 }

@@ -3,6 +3,8 @@ package abuse
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -40,6 +42,7 @@ var (
 type BotVerifier struct {
 	store    Store
 	resolver resolver
+	log      *slog.Logger
 	timeout  time.Duration
 }
 
@@ -47,6 +50,7 @@ func NewBotVerifier(store Store, options ...BotVerifierOption) *BotVerifier {
 	v := &BotVerifier{
 		store:    store,
 		resolver: net.DefaultResolver,
+		log:      slog.Default(),
 		timeout:  botTimeout,
 	}
 	for _, option := range options {
@@ -62,12 +66,20 @@ func (v *BotVerifier) verifyBot(r *http.Request, addr netip.Addr, now time.Time)
 	if httpx.IsFromCloudflare(r) && r.Header.Get("X-Verified-Bot") == botVerifiedValue {
 		return true
 	}
+	ctx := r.Context()
 	key := Key{Namespace: botNamespace, Value: addr.String()}
-	if good, found, err := v.store.LoadMark(key, now); err == nil && found {
-		return good
+	cachedGood, found, loadErr := v.store.LoadMark(key, now)
+	if loadErr != nil {
+		v.log.WarnContext(ctx, fmt.Sprintf("abuse: cached bot verdict was not loaded, verifying again: %v", loadErr))
 	}
-	good, ttl := v.confirmBotHost(r.Context(), addr)
-	_ = v.store.SaveMark(key, good, ttl, now)
+	if loadErr == nil && found {
+		return cachedGood
+	}
+	good, ttl := v.confirmBotHost(ctx, addr)
+	// The verdict is still correct for this request; only the cache misses it.
+	if saveErr := v.store.SaveMark(key, good, ttl, now); saveErr != nil {
+		v.log.WarnContext(ctx, fmt.Sprintf("abuse: bot verdict was not cached: %v", saveErr))
+	}
 	return good
 }
 

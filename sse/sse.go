@@ -57,8 +57,11 @@ func Event(w http.ResponseWriter, flusher http.Flusher, name, data string) error
 	}
 	if name != "" {
 		if _, err := fmt.Fprintf(w, "event: %s\n", name); err != nil {
-			return err
+			return fmt.Errorf("write sse event name %q failed: %w", name, err)
 		}
 	}
-	return Data(w, flusher, data)
+	if err := Data(w, flusher, data); err != nil {
+		return fmt.Errorf("write sse event %q failed: %w", name, err)
+	}
+	return nil
 }

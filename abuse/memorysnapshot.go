@@ -51,11 +51,18 @@ type snapshotMark struct {
 }
 
 func (s *MemoryStore) MarshalBinary() ([]byte, error) {
-	return s.marshalAt(time.Now())
+	data, err := s.marshalAt(time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("marshal abuse memory store failed: %w", err)
+	}
+	return data, nil
 }
 
 func (s *MemoryStore) UnmarshalBinary(data []byte) error {
-	return s.unmarshalAt(data, time.Now())
+	if err := s.unmarshalAt(data, time.Now()); err != nil {
+		return fmt.Errorf("unmarshal abuse memory store failed: %w", err)
+	}
+	return nil
 }
 
 func (s *MemoryStore) marshalAt(now time.Time) ([]byte, error) {

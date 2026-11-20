@@ -283,7 +283,9 @@ func TestEngine(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				e := newTestEngine(t, append([]Option{WithRouter(NewRouter(chi.NewRouter(), NewDefaultHandler()))}, tt.options...)...)
 				e.Router.Get("item", "/items", noContent)
-				e.Root.Raw().Get("/static", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+				e.Root.Raw().Get("/static", func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
 				w := httptest.NewRecorder()
 				e.Root.Raw().ServeHTTP(w, httptest.NewRequest(http.MethodGet, tt.path, nil))
 				if got := w.Header().Get("X-Content-Type-Options"); got != tt.want {

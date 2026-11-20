@@ -103,10 +103,16 @@ func (e *Engine) Start() error {
 	}()
 	select {
 	case err := <-served:
-		return errors.Join(err, e.runCleanup())
+		if joined := errors.Join(err, e.runCleanup()); joined != nil {
+			return fmt.Errorf("run engine failed: %w", joined)
+		}
+		return nil
 	case <-ctx.Done():
 	}
-	return e.shutdown(server, served)
+	if err := e.shutdown(server, served); err != nil {
+		return fmt.Errorf("stop engine failed: %w", err)
+	}
+	return nil
 }
 
 func (e *Engine) registerCoreMiddlewares() {
@@ -197,11 +203,11 @@ func (e *Engine) shutdown(server *http.Server, served <-chan error) error {
 	if err := server.Shutdown(ctx); err != nil {
 		shutdownErr = fmt.Errorf("shutdown server failed: %w", err)
 	}
-	err := errors.Join(shutdownErr, <-served, e.runCleanup())
-	if err == nil {
-		log.Println("✅ stopped")
+	if err := errors.Join(shutdownErr, <-served, e.runCleanup()); err != nil {
+		return fmt.Errorf("shut down server and cleanups failed: %w", err)
 	}
-	return err
+	log.Println("✅ stopped")
+	return nil
 }
 
 func (e *Engine) runCleanup() error {
@@ -211,9 +217,9 @@ func (e *Engine) runCleanup() error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(e.Ctx), 5*time.Second)
 	defer cancel()
 	var errs []error
-	for _, cleanup := range e.cleanups {
+	for i, cleanup := range e.cleanups {
 		if err := cleanup(ctx); err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("run cleanup %d failed: %w", i+1, err))
 		}
 	}
 	if err := errors.Join(errs...); err != nil {

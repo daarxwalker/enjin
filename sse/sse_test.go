@@ -45,7 +45,9 @@ func TestSSE(t *testing.T) {
 			defer server.Close()
 			res, err := http.Get(server.URL)
 			require.NoError(t, err)
-			defer func() { require.NoError(t, res.Body.Close()) }()
+			defer func() {
+				require.NoError(t, res.Body.Close())
+			}()
 			body, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(body), "data: late")

@@ -2,6 +2,7 @@ package lock
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -29,7 +30,7 @@ func (d *RedisDriver) TryLock(
 ) (bool, error) {
 	ok, err := d.client.SetNX(ctx, key, token, ttl).Result()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("set lock %q failed: %w", key, err)
 	}
 	return ok, nil
 }
@@ -37,7 +38,7 @@ func (d *RedisDriver) TryLock(
 func (d *RedisDriver) Unlock(ctx context.Context, key, token string) (bool, error) {
 	deleted, err := unlockScript.Run(ctx, d.client, []string{key}, token).Int()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("delete lock %q failed: %w", key, err)
 	}
 	return deleted == 1, nil
 }

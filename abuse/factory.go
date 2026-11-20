@@ -3,6 +3,7 @@ package abuse
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"net/http"
 	"net/netip"
 
@@ -32,13 +33,22 @@ func createIdentity(r *http.Request) Identity {
 	if addr.Is6() {
 		bits = ipv6PrefixBits
 	}
-	id.IP, _ = addr.Prefix(bits)
-	id.IPKey = id.IP.String()
+	prefix, err := addr.Prefix(bits)
+	if err != nil {
+		id.IPKey = addr.String()
+		return id
+	}
+	id.IP = prefix
+	id.IPKey = prefix.String()
 	return id
 }
 
 func createMemberSalt() uint32 {
 	var salt [4]byte
-	_, _ = rand.Read(salt[:])
+	// Since Go 1.24 crypto/rand.Read crashes the program instead of returning
+	// an error, so this branch is unreachable.
+	if _, err := rand.Read(salt[:]); err != nil {
+		panic(fmt.Errorf("read random member salt failed: %w", err))
+	}
 	return binary.LittleEndian.Uint32(salt[:])
 }

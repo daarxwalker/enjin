@@ -24,7 +24,9 @@ func TestClient(t *testing.T) {
 		}
 		res, err := httpx.NewClient().Do(req)
 		if res != nil {
-			defer func() { _ = res.Body.Close() }()
+			defer func() {
+				_ = res.Body.Close()
+			}()
 		}
 		if err == nil {
 			t.Fatal("Do() error = nil, want error")

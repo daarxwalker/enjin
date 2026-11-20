@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -58,7 +59,7 @@ func newWeb(ctx context.Context, rdb *redis.Client, logger *slog.Logger, secureC
 		)...,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create web engine failed: %w", err)
 	}
 	mountGuestbook(engine.Router, csrfManager, newGuestbook())
 	engine.Router.NotFound(func(http.ResponseWriter, *http.Request) error {

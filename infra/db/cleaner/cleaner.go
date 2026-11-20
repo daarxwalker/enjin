@@ -58,8 +58,10 @@ func WithBatchSize(batchSize int) Option {
 // DeleteExpiredRows deletes the expired rows of every table and returns how
 // many. A failing table does not stop the others; their errors are joined.
 func (c *Cleaner) DeleteExpiredRows(ctx context.Context) (int64, error) {
-	var total int64
-	var errs []error
+	var (
+		total int64
+		errs  []error
+	)
 	for _, table := range c.tables {
 		deleted, err := c.deleteExpiredTableRows(ctx, table)
 		total += deleted
@@ -80,12 +82,9 @@ func (c *Cleaner) RunCleanups(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			deleted, err := c.DeleteExpiredRows(ctx)
-			if err != nil {
-				c.log.ErrorContext(ctx, "cleaner: delete expired rows failed", slog.Any("error", err))
-				continue
+			if _, err := c.DeleteExpiredRows(ctx); err != nil {
+				c.log.ErrorContext(ctx, fmt.Sprintf("cleaner: expired rows were not deleted: %v", err))
 			}
-			c.log.DebugContext(ctx, "cleaner: expired rows deleted", slog.Int64("deleted", deleted))
 		}
 	}
 }
@@ -99,7 +98,7 @@ func (c *Cleaner) deleteExpiredTableRows(ctx context.Context, table string) (int
 	for {
 		tag, err := c.querier.Exec(ctx, query, c.batchSize)
 		if err != nil {
-			return total, err
+			return total, fmt.Errorf("delete batch of expired rows failed: %w", err)
 		}
 		total += tag.RowsAffected()
 		if tag.RowsAffected() < int64(c.batchSize) {

@@ -2,6 +2,7 @@ package lock
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/daarxwalker/enjin/infra/db"
@@ -24,7 +25,7 @@ func NewPostgresDriver(querier db.Querier) *PostgresDriver {
 func (d *PostgresDriver) TryLock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
 	tag, err := d.querier.Exec(ctx, insertLockSQL, key, token, expiresIn(ttl))
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("insert lock %q failed: %w", key, err)
 	}
 	return tag.RowsAffected() == 1, nil
 }
@@ -32,7 +33,7 @@ func (d *PostgresDriver) TryLock(ctx context.Context, key, token string, ttl tim
 func (d *PostgresDriver) Unlock(ctx context.Context, key, token string) (bool, error) {
 	tag, err := d.querier.Exec(ctx, deleteLockSQL, key, token)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("delete lock %q failed: %w", key, err)
 	}
 	return tag.RowsAffected() == 1, nil
 }

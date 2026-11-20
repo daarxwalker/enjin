@@ -23,7 +23,9 @@ func written(t *testing.T, write func(w http.ResponseWriter)) *http.Cookie {
 func TestConfig(t *testing.T) {
 	t.Run("secure by default", func(t *testing.T) {
 		cfg := cookie.NewConfig(cookie.WithName("x"))
-		c := written(t, func(w http.ResponseWriter) { cfg.Attach(w, "v") })
+		c := written(t, func(w http.ResponseWriter) {
+			cfg.Attach(w, "v")
+		})
 		if !c.Secure || !c.HttpOnly {
 			t.Fatalf("Secure = %v, HttpOnly = %v, want both true", c.Secure, c.HttpOnly)
 		}
@@ -35,7 +37,9 @@ func TestConfig(t *testing.T) {
 	t.Run("apply disables flags", func(t *testing.T) {
 		cfg := cookie.NewConfig(cookie.WithName("x"))
 		cfg.Apply(cookie.WithSecure(false), cookie.WithHTTPOnly(false))
-		c := written(t, func(w http.ResponseWriter) { cfg.Attach(w, "v") })
+		c := written(t, func(w http.ResponseWriter) {
+			cfg.Attach(w, "v")
+		})
 		if c.Secure || c.HttpOnly {
 			t.Fatalf("Secure = %v, HttpOnly = %v, want both false", c.Secure, c.HttpOnly)
 		}
@@ -49,7 +53,9 @@ func TestConfig(t *testing.T) {
 			cookie.WithTTL(time.Hour),
 		)
 		cfg.Apply(cookie.WithName("y"))
-		c := written(t, func(w http.ResponseWriter) { cfg.Attach(w, "v") })
+		c := written(t, func(w http.ResponseWriter) {
+			cfg.Attach(w, "v")
+		})
 		if c.Name != "y" || c.HttpOnly || c.SameSite != http.SameSiteStrictMode || c.MaxAge != 3600 {
 			t.Fatalf("got %+v, want name y, HttpOnly false, Strict, MaxAge 3600", c)
 		}
@@ -57,8 +63,12 @@ func TestConfig(t *testing.T) {
 
 	t.Run("domain on attach and destroy", func(t *testing.T) {
 		cfg := cookie.NewConfig(cookie.WithName("x"), cookie.WithDomain("example.com"), cookie.WithPath("/app"))
-		attached := written(t, func(w http.ResponseWriter) { cfg.Attach(w, "v") })
-		destroyed := written(t, func(w http.ResponseWriter) { cfg.Destroy(w) })
+		attached := written(t, func(w http.ResponseWriter) {
+			cfg.Attach(w, "v")
+		})
+		destroyed := written(t, func(w http.ResponseWriter) {
+			cfg.Destroy(w)
+		})
 		for _, c := range []*http.Cookie{attached, destroyed} {
 			if c.Domain != "example.com" || c.Path != "/app" {
 				t.Fatalf("Domain = %q, Path = %q, want example.com and /app", c.Domain, c.Path)

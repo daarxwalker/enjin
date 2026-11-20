@@ -38,7 +38,7 @@ func (m *Manager) Lock(ctx context.Context, name, id string) (Lease, error) {
 		}
 		select {
 		case <-ctx.Done():
-			return zero, ctx.Err()
+			return zero, fmt.Errorf("lock: wait for %s stopped: %w", lease.key, ctx.Err())
 		case <-ticker.C:
 		}
 	}

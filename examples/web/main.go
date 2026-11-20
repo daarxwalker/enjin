@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -26,8 +27,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	engine, err := newWeb(ctx, rdb, logger, os.Getenv("SECURE_COOKIES") == "true",
-		app.WithPort(port), app.WithCleanup(func(context.Context) error { return rdb.Close() }))
+	engine, err := newWeb(
+		ctx,
+		rdb,
+		logger,
+		os.Getenv("SECURE_COOKIES") == "true",
+		app.WithPort(port),
+		app.WithCleanup(func(context.Context) error {
+			if closeErr := rdb.Close(); closeErr != nil {
+				return fmt.Errorf("close redis client failed: %w", closeErr)
+			}
+			return nil
+		}),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -49,11 +49,11 @@ func (c composer) compose(message Message, sentAt time.Time) ([]byte, error) {
 	}
 	root, err := c.createRoot(message)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create message parts failed: %w", err)
 	}
 	rootHeader, rootBody, err := c.render(root)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("render message parts failed: %w", err)
 	}
 	var buf bytes.Buffer
 	c.writeHeader(&buf, "From", from.String())
@@ -97,23 +97,23 @@ func (c composer) createRoot(message Message) (part, error) {
 	case message.HTML != "" && message.Text != "":
 		textPart, err := c.createTextPart("text/plain", message.Text)
 		if err != nil {
-			return part{}, err
+			return part{}, fmt.Errorf("create text part failed: %w", err)
 		}
 		htmlPart, err := c.createTextPart("text/html", message.HTML)
 		if err != nil {
-			return part{}, err
+			return part{}, fmt.Errorf("create html part failed: %w", err)
 		}
 		body = part{subtype: "alternative", children: []part{textPart, htmlPart}}
 	case message.HTML != "":
 		htmlPart, err := c.createTextPart("text/html", message.HTML)
 		if err != nil {
-			return part{}, err
+			return part{}, fmt.Errorf("create html part failed: %w", err)
 		}
 		body = htmlPart
 	case message.Text != "":
 		textPart, err := c.createTextPart("text/plain", message.Text)
 		if err != nil {
-			return part{}, err
+			return part{}, fmt.Errorf("create text part failed: %w", err)
 		}
 		body = textPart
 	default:
@@ -124,7 +124,7 @@ func (c composer) createRoot(message Message) (part, error) {
 		for _, embed := range message.Embeds {
 			embedPart, err := c.createEmbedPart(embed)
 			if err != nil {
-				return part{}, err
+				return part{}, fmt.Errorf("create embed %q part failed: %w", embed.Name, err)
 			}
 			children = append(children, embedPart)
 		}
@@ -135,7 +135,7 @@ func (c composer) createRoot(message Message) (part, error) {
 		for _, attachment := range message.Attachments {
 			attachmentPart, err := c.createAttachmentPart(attachment)
 			if err != nil {
-				return part{}, err
+				return part{}, fmt.Errorf("create attachment %q part failed: %w", attachment.Name, err)
 			}
 			children = append(children, attachmentPart)
 		}
@@ -165,7 +165,7 @@ func (c composer) createEmbedPart(embed File) (part, error) {
 	}
 	header, err := c.createFileHeader(embed, "inline")
 	if err != nil {
-		return part{}, err
+		return part{}, fmt.Errorf("create embed %q header failed: %w", embed.Name, err)
 	}
 	header.Set("Content-ID", "<"+embed.Name+">")
 	return part{header: header, body: c.encodeBase64(embed.Bytes)}, nil
@@ -174,7 +174,7 @@ func (c composer) createEmbedPart(embed File) (part, error) {
 func (c composer) createAttachmentPart(attachment File) (part, error) {
 	header, err := c.createFileHeader(attachment, "attachment")
 	if err != nil {
-		return part{}, err
+		return part{}, fmt.Errorf("create attachment %q header failed: %w", attachment.Name, err)
 	}
 	return part{header: header, body: c.encodeBase64(attachment.Bytes)}, nil
 }
@@ -218,7 +218,7 @@ func (c composer) render(p part) (textproto.MIMEHeader, []byte, error) {
 	for _, child := range p.children {
 		childHeader, childBody, err := c.render(child)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("render %s child part failed: %w", p.subtype, err)
 		}
 		partWriter, err := writer.CreatePart(childHeader)
 		if err != nil {

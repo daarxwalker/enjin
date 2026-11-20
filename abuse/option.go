@@ -65,3 +65,9 @@ func WithResolver(resolver resolver) BotVerifierOption {
 		v.resolver = resolver
 	}
 }
+
+func WithBotVerifierLogger(log *slog.Logger) BotVerifierOption {
+	return func(v *BotVerifier) {
+		v.log = log
+	}
+}

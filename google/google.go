@@ -83,7 +83,11 @@ type googleJWTSource struct {
 }
 
 func (s *googleJWTSource) Token(ctx context.Context) (*oauth2.Token, error) {
-	return s.config.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, s.client)).Token()
+	token, err := s.config.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, s.client)).Token()
+	if err != nil {
+		return nil, fmt.Errorf("get google service account token failed: %w", err)
+	}
+	return token, nil
 }
 
 type googleTokenCache struct {
@@ -124,23 +128,32 @@ type googleTransport struct {
 func (t *googleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	token, err := t.tokens.current(req.Context())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get google token for %s failed: %w", req.URL.Host, err)
 	}
 	res, err := t.base.RoundTrip(t.authorize(req, token))
-	if err != nil || res.StatusCode != http.StatusUnauthorized {
-		return res, err
+	if err != nil {
+		return nil, fmt.Errorf("send google request to %s failed: %w", req.URL.Host, err)
+	}
+	if res.StatusCode != http.StatusUnauthorized {
+		return res, nil
 	}
 	if req.Body != nil && req.Body != http.NoBody && req.GetBody == nil {
 		return res, nil
 	}
-	_, _ = io.Copy(io.Discard, res.Body)
+	if _, drainErr := io.Copy(io.Discard, res.Body); drainErr != nil {
+		drainFailure := fmt.Errorf("drain unauthorized google response failed: %w", drainErr)
+		if closeErr := res.Body.Close(); closeErr != nil {
+			return nil, errors.Join(drainFailure, fmt.Errorf("close unauthorized google response failed: %w", closeErr))
+		}
+		return nil, drainFailure
+	}
 	if closeErr := res.Body.Close(); closeErr != nil {
 		return nil, fmt.Errorf("close unauthorized google response failed: %w", closeErr)
 	}
 	t.tokens.invalidate(token)
 	token, err = t.tokens.current(req.Context())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("refresh google token for %s failed: %w", req.URL.Host, err)
 	}
 	retry := t.authorize(req, token)
 	if req.GetBody != nil {
@@ -150,7 +163,11 @@ func (t *googleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		retry.Body = body
 	}
-	return t.base.RoundTrip(retry)
+	retried, err := t.base.RoundTrip(retry)
+	if err != nil {
+		return nil, fmt.Errorf("retry google request to %s failed: %w", req.URL.Host, err)
+	}
+	return retried, nil
 }
 
 func (t *googleTransport) authorize(req *http.Request, token *oauth2.Token) *http.Request {

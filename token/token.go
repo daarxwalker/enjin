@@ -3,6 +3,7 @@ package token
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 )
 
 const (
@@ -12,7 +13,11 @@ const (
 
 func New() string {
 	b := make([]byte, size)
-	_, _ = rand.Read(b)
+	// Since Go 1.24 crypto/rand.Read crashes the program instead of returning
+	// an error, so this branch is unreachable.
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Errorf("read random token bytes failed: %w", err))
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 

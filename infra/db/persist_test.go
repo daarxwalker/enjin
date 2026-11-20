@@ -50,14 +50,18 @@ func items(count int, withID bool) []item {
 
 func itemPersister(entities []item, options ...db.PersistOption[item]) *db.Persister[item] {
 	columns := []db.Column[item]{
-		db.ColumnText("name", func(i item) any { return i.Name }),
+		db.ColumnText("name", func(i item) any {
+			return i.Name
+		}),
 	}
 	options = append(options, db.WithPersistEntities(entities...))
 	return db.NewPersist("items", columns, options...)
 }
 
 func withItemID() db.PersistOption[item] {
-	return db.WithPersistID(func(i item) string { return i.ID })
+	return db.WithPersistID(func(i item) string {
+		return i.ID
+	})
 }
 
 func TestPersist(t *testing.T) {

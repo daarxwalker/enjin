@@ -56,7 +56,7 @@ func (repo *productRepo) get(id string) (product, error) {
 			return p, nil
 		}
 	}
-	return product{}, errProductNotFound
+	return product{}, fmt.Errorf("get product %s failed: %w", id, errProductNotFound)
 }
 
 func (repo *productRepo) create(name string, price int, createdBy string) product {

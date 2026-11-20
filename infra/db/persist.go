@@ -59,13 +59,19 @@ func BulkPersist[T any](ctx context.Context, tx pgx.Tx, p *Persister[T]) error {
 		}
 	}
 	if insertErr := p.insert(ctx, tx, insertEntities); insertErr != nil {
-		return insertErr
+		return fmt.Errorf("persist new rows of %s failed: %w", p.table, insertErr)
 	}
-	return p.update(ctx, tx, updateEntities)
+	if updateErr := p.update(ctx, tx, updateEntities); updateErr != nil {
+		return fmt.Errorf("persist existing rows of %s failed: %w", p.table, updateErr)
+	}
+	return nil
 }
 
 func BulkInsert[T any](ctx context.Context, tx pgx.Tx, p *Persister[T]) error {
-	return p.insert(ctx, tx, p.entities)
+	if err := p.insert(ctx, tx, p.entities); err != nil {
+		return fmt.Errorf("bulk insert into %s failed: %w", p.table, err)
+	}
+	return nil
 }
 
 func (p *Persister[T]) insert(ctx context.Context, tx pgx.Tx, entities []T) error {

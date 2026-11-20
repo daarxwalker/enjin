@@ -141,7 +141,9 @@ func TestSMTPDriver(t *testing.T) {
 				srv.port(t),
 				"user@example.com",
 				"",
-				mail.WithSMTPOAuth2(func(context.Context) (string, error) { return "token", nil }),
+				mail.WithSMTPOAuth2(func(context.Context) (string, error) {
+					return "token", nil
+				}),
 			)
 			require.NoError(t, driver.Send(t.Context(), testEnvelope, []byte("x")))
 			srv.mu.Lock()
@@ -247,7 +249,9 @@ func newSMTPTestServer(t *testing.T, config smtpTestConfig) *smtpTestServer {
 		listener = tls.NewListener(listener, config.implicitTLS)
 	}
 	srv := &smtpTestServer{listener: listener, config: config}
-	t.Cleanup(func() { _ = listener.Close() })
+	t.Cleanup(func() {
+		_ = listener.Close()
+	})
 	go srv.accept()
 	return srv
 }
@@ -289,7 +293,9 @@ func (s *smtpTestServer) accept() {
 	if err != nil {
 		return
 	}
-	defer func() { _ = conn.Close() }()
+	defer func() {
+		_ = conn.Close()
+	}()
 	if s.config.silent {
 		_, _ = bufio.NewReader(conn).ReadString('\n')
 		return

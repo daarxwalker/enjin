@@ -91,7 +91,7 @@ func (s *Store) Seed(ctx context.Context, options ...AttachOption) (string, erro
 		option(p)
 	}
 	if err := saveProfileToCache(ctx, s.cache, p, s.cookie.TTL); err != nil {
-		return "", err
+		return "", fmt.Errorf("seed session failed: %w", err)
 	}
 	return p.Token, nil
 }
@@ -103,7 +103,11 @@ func (s *Store) getToken(r *http.Request, cv *ctxVal) (string, error) {
 			return value, nil
 		}
 	}
-	return getTokenFromCookie(r, s.cookie.Name)
+	value, err := getTokenFromCookie(r, s.cookie.Name)
+	if err != nil {
+		return "", fmt.Errorf("get session token from cookie %s failed: %w", s.cookie.Name, err)
+	}
+	return value, nil
 }
 
 func (s *Store) Cookie() string {

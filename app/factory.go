@@ -20,11 +20,11 @@ func MustURL(ctx context.Context, name string, params ...map[string]any) string 
 func URL(ctx context.Context, name string, params ...map[string]any) (string, error) {
 	req := httpx.From(ctx)
 	if req == nil {
-		return "", ErrNoRouter
+		return "", fmt.Errorf("build url %s failed: %w", name, ErrNoRouter)
 	}
 	router := RouterFrom(ctx)
 	if router == nil {
-		return "", ErrNoRouter
+		return "", fmt.Errorf("build url %s failed: %w", name, ErrNoRouter)
 	}
 	route, ok := router.routeSet[name]
 	if !ok {

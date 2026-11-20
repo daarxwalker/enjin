@@ -10,11 +10,17 @@ import (
 )
 
 func ServeFS(r *Router, root http.FileSystem, path string, strip string, maxAge time.Duration) error {
-	return serveFS(r, root, path, strip, fmt.Sprintf("public, max-age=%d", int(maxAge.Seconds())))
+	if err := serveFS(r, root, path, strip, fmt.Sprintf("public, max-age=%d", int(maxAge.Seconds()))); err != nil {
+		return fmt.Errorf("serve files at %s failed: %w", path, err)
+	}
+	return nil
 }
 
 func ServeImmutableFS(r *Router, root http.FileSystem, path string, strip string) error {
-	return serveFS(r, root, path, strip, "public, max-age=31536000, immutable")
+	if err := serveFS(r, root, path, strip, "public, max-age=31536000, immutable"); err != nil {
+		return fmt.Errorf("serve immutable files at %s failed: %w", path, err)
+	}
+	return nil
 }
 
 func serveFS(r *Router, root http.FileSystem, path string, strip string, cacheControl string) error {
