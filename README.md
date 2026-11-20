@@ -260,6 +260,26 @@ store := filestore.NewClient(diskDriver)
   directories that become empty.
 - Unlike S3, a key cannot be both a file and a directory (`a` and `a/b`).
 
+WebDAV (`filestore/webdav`: Nextcloud, ownCloud, Apache mod_dav, nginx …):
+
+```go
+davDriver, err := webdav.NewDriver(
+    "https://cloud.example.com/remote.php/dav/files/app/",
+    webdav.WithBasicAuth(username, password),
+)
+store := filestore.NewClient(davDriver)
+```
+
+- A client over `net/http` with no extra dependency; auth through
+  `WithBasicAuth` or `WithBearerToken`, transport through `WithHTTPClient`.
+- Put creates missing parent collections (MKCOL) and remembers them. When
+  someone removes them on the server, Put creates them again and resends a
+  body that can seek; any other body fails once with `ErrUnexpectedStatus`.
+- Delete leaves empty collections; List never returns collections. Delete of
+  a key that is a collection deletes nothing, so it never removes a tree.
+- Many servers ignore the Content-Type of a PUT and derive it from the name.
+- A body of unknown size (`-1`) goes chunked; some servers (nginx) refuse it.
+
 ## client
 
 Anonymous browser identity (`X-Client` cookie) with a per-client key/value store.

@@ -13,6 +13,13 @@ it; notes of past releases live on the GitHub releases page.
   with atomic writes, metadata in `.meta/`, `ErrInvalidKey` for keys that
   would leave the directory and `ErrSizeMismatch` when the body differs from
   the given size.
+- `filestore/webdav`: filestore Driver for WebDAV servers, a client over
+  `net/http` (PROPFIND, GET, PUT, MKCOL, DELETE) with basic or bearer auth,
+  parent collections created on Put and `ErrInvalidKey` /
+  `ErrUnexpectedStatus` sentinels.
+- `filestoretest.Subject.DerivesContentType` also relaxes the put-and-get and
+  stat checks to the media type, since such stores add parameters
+  (`text/plain; charset=utf-8`).
 - `abuse.WithBotVerifierLogger` sets the logger of `BotVerifier`.
 
 ### Changed

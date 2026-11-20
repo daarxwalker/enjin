@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"io"
+	"mime"
 	"testing"
 
 	"github.com/daarxwalker/enjin/filestore"
@@ -22,10 +23,10 @@ type Subject struct {
 // uses its own key prefix, so the store may be shared with other tests.
 func RunDriverSuite(t *testing.T, subject Subject) {
 	t.Run("put and get", func(t *testing.T) {
-		checkPutAndGet(t, subject.Driver)
+		checkPutAndGet(t, subject)
 	})
 	t.Run("stat", func(t *testing.T) {
-		checkStat(t, subject.Driver)
+		checkStat(t, subject)
 	})
 	t.Run("missing file", func(t *testing.T) {
 		checkMissing(t, subject.Driver)
@@ -56,26 +57,26 @@ func RunDriverSuite(t *testing.T, subject Subject) {
 	})
 }
 
-func checkPutAndGet(t *testing.T, driver filestore.Driver) {
+func checkPutAndGet(t *testing.T, subject Subject) {
 	key := "suite-get/hello.txt"
 	value := []byte("hello filestore")
-	requirePut(t, driver, key, value, "text/plain")
+	requirePut(t, subject.Driver, key, value, "text/plain")
 
-	object := requireGet(t, driver, key, value)
+	object := requireGet(t, subject.Driver, key, value)
 	require.Equal(t, key, object.Key)
-	require.Equal(t, "text/plain", object.ContentType)
+	requireContentType(t, subject, "text/plain", object.ContentType)
 	require.Equal(t, int64(len(value)), object.Size)
 	require.False(t, object.ModifiedAt.IsZero())
 }
 
-func checkStat(t *testing.T, driver filestore.Driver) {
+func checkStat(t *testing.T, subject Subject) {
 	key := "suite-stat/data.json"
 	value := []byte(`{"ok":true}`)
-	requirePut(t, driver, key, value, "application/json")
+	requirePut(t, subject.Driver, key, value, "application/json")
 
-	file := requireStat(t, driver, key)
+	file := requireStat(t, subject.Driver, key)
 	require.Equal(t, key, file.Key)
-	require.Equal(t, "application/json", file.ContentType)
+	requireContentType(t, subject, "application/json", file.ContentType)
 	require.Equal(t, int64(len(value)), file.Size)
 	require.NotEmpty(t, file.ETag)
 	require.False(t, file.ModifiedAt.IsZero())
@@ -200,6 +201,19 @@ func checkDelete(t *testing.T, driver filestore.Driver) {
 	require.Equal(t, []string{"suite-delete/kept.txt"}, listKeys(t, driver, "suite-delete/"))
 
 	require.NoError(t, driver.Delete(ctx, key))
+}
+
+// requireContentType compares only the media type when the store derives the
+// type itself, because it may add parameters ("text/plain; charset=utf-8").
+func requireContentType(t *testing.T, subject Subject, expected, actual string) {
+	t.Helper()
+	if !subject.DerivesContentType {
+		require.Equal(t, expected, actual)
+		return
+	}
+	mediaType, _, err := mime.ParseMediaType(actual)
+	require.NoError(t, err)
+	require.Equal(t, expected, mediaType)
 }
 
 func requirePut(t *testing.T, driver filestore.Driver, key string, value []byte, contentType string) {
