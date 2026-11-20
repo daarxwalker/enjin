@@ -3,7 +3,7 @@ module github.com/daarxwalker/enjin/app/openapi
 go 1.27
 
 require (
-	github.com/daarxwalker/enjin v0.2.0
+	github.com/daarxwalker/enjin v0.3.0
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggest/openapi-go v0.2.61
