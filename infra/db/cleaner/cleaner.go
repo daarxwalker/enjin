@@ -19,6 +19,7 @@ type Cleaner struct {
 	log       *slog.Logger
 	tables    []string
 	batchSize int
+	interval  time.Duration
 }
 
 type Option func(*Cleaner)
@@ -32,6 +33,7 @@ func NewCleaner(querier db.Querier, tables []string, options ...Option) *Cleaner
 		log:       slog.Default(),
 		tables:    slices.Clone(tables),
 		batchSize: 1000,
+		interval:  time.Minute,
 	}
 	for _, option := range options {
 		option(c)
@@ -55,6 +57,16 @@ func WithBatchSize(batchSize int) Option {
 	}
 }
 
+// WithInterval sets how often RunCleanups deletes expired rows; the default
+// is one minute. A zero or negative interval is ignored.
+func WithInterval(interval time.Duration) Option {
+	return func(c *Cleaner) {
+		if interval > 0 {
+			c.interval = interval
+		}
+	}
+}
+
 // DeleteExpiredRows deletes the expired rows of every table and returns how
 // many. A failing table does not stop the others; their errors are joined.
 func (c *Cleaner) DeleteExpiredRows(ctx context.Context) (int64, error) {
@@ -72,10 +84,10 @@ func (c *Cleaner) DeleteExpiredRows(ctx context.Context) (int64, error) {
 	return total, errors.Join(errs...)
 }
 
-// RunCleanups deletes expired rows every interval until ctx ends. A failed
-// cleanup is logged and the next one runs on time.
-func (c *Cleaner) RunCleanups(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
+// RunCleanups deletes expired rows every interval (WithInterval) until ctx
+// ends. A failed cleanup is logged and the next one runs on time.
+func (c *Cleaner) RunCleanups(ctx context.Context) {
+	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 	for {
 		select {

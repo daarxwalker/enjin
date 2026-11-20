@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/netip"
 	"os/signal"
@@ -23,6 +23,7 @@ import (
 
 type Engine struct {
 	Ctx                context.Context
+	log                *slog.Logger
 	metrics            http.Handler
 	spec               Spec
 	cors               *cors.Options
@@ -46,6 +47,7 @@ type Engine struct {
 
 func NewEngine(options ...Option) (*Engine, error) {
 	e := new(Engine{
+		log:                slog.Default(),
 		useCoreMiddlewares: true,
 	})
 	for _, option := range options {
@@ -149,7 +151,7 @@ func (e *Engine) createProxy() *httpx.Proxy {
 
 func (e *Engine) registerOps() {
 	if e.opsToken == "" {
-		log.Printf("🔴 ops token not set, metrics and profiler disabled\n")
+		e.log.WarnContext(e.Ctx, "🔴 ops token not set, metrics and profiler disabled")
 		return
 	}
 	e.Root.Raw().Group(
@@ -188,7 +190,7 @@ func (e *Engine) createServer() *http.Server {
 }
 
 func (e *Engine) serve(server *http.Server) error {
-	log.Printf("🌐 started on host: %s\n", server.Addr)
+	e.log.InfoContext(e.Ctx, "🌐 started", "addr", server.Addr)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("listen on %s failed: %w", server.Addr, err)
 	}
@@ -196,7 +198,7 @@ func (e *Engine) serve(server *http.Server) error {
 }
 
 func (e *Engine) shutdown(server *http.Server, served <-chan error) error {
-	log.Println("⏳ stopping...")
+	e.log.InfoContext(e.Ctx, "⏳ stopping")
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(e.Ctx), 5*time.Second)
 	defer cancel()
 	var shutdownErr error
@@ -206,7 +208,7 @@ func (e *Engine) shutdown(server *http.Server, served <-chan error) error {
 	if err := errors.Join(shutdownErr, <-served, e.runCleanup()); err != nil {
 		return fmt.Errorf("shut down server and cleanups failed: %w", err)
 	}
-	log.Println("✅ stopped")
+	e.log.InfoContext(e.Ctx, "✅ stopped")
 	return nil
 }
 
@@ -247,6 +249,14 @@ type Option func(*Engine)
 func WithContext(ctx context.Context) Option {
 	return func(e *Engine) {
 		e.Ctx = ctx
+	}
+}
+
+func WithLogger(log *slog.Logger) Option {
+	return func(e *Engine) {
+		if log != nil {
+			e.log = log
+		}
 	}
 }
 

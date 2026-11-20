@@ -25,6 +25,14 @@ func TestDriver(t *testing.T) {
 	})
 }
 
+func TestDriverRedirectingServer(t *testing.T) {
+	server := newRedirectingServer(t)
+	filestoretest.RunDriverSuite(t, filestoretest.Subject{
+		Driver:             newDriver(t, server.URL+"/dav"),
+		DerivesContentType: true,
+	})
+}
+
 func TestNewDriver(t *testing.T) {
 	for _, baseURL := range []string{"ftp://example.com/dav/", "http:///dav/", "http://example.com/dav/?a=1", "::"} {
 		_, err := webdav.NewDriver(baseURL)
@@ -247,6 +255,37 @@ func newServer(t *testing.T, allow func(r *http.Request) bool) *httptest.Server 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if allow != nil && !allow(r) {
 			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+// newRedirectingServer behaves like Apache mod_dav: a collection addressed
+// without its slash answers 301, and GET of a collection lists it as HTML.
+func newRedirectingServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	fileSystem := xwebdav.NewMemFS()
+	handler := &xwebdav.Handler{
+		Prefix:     "/dav",
+		FileSystem: fileSystem,
+		LockSystem: xwebdav.NewMemLS(),
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/") && r.Method != http.MethodPut && r.Method != "MKCOL" {
+			info, err := fileSystem.Stat(r.Context(), strings.TrimPrefix(r.URL.Path, "/dav"))
+			if err == nil && info.IsDir() {
+				http.Redirect(w, r, r.URL.Path+"/", http.StatusMovedPermanently)
+				return
+			}
+		}
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/") {
+			w.Header().Set("Content-Type", "text/html")
+			if _, err := io.WriteString(w, "<html>index</html>"); err != nil {
+				t.Errorf("write collection listing failed: %v", err)
+			}
 			return
 		}
 		handler.ServeHTTP(w, r)

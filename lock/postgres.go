@@ -23,17 +23,21 @@ func NewPostgresDriver(querier db.Querier) *PostgresDriver {
 // TryLock with a zero or negative TTL holds the lock until Unlock, the same as
 // Redis SETNX without expiry.
 func (d *PostgresDriver) TryLock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
+	var zero bool
+
 	tag, err := d.querier.Exec(ctx, insertLockSQL, key, token, expiresIn(ttl))
 	if err != nil {
-		return false, fmt.Errorf("insert lock %q failed: %w", key, err)
+		return zero, fmt.Errorf("insert lock %q failed: %w", key, err)
 	}
 	return tag.RowsAffected() == 1, nil
 }
 
 func (d *PostgresDriver) Unlock(ctx context.Context, key, token string) (bool, error) {
+	var zero bool
+
 	tag, err := d.querier.Exec(ctx, deleteLockSQL, key, token)
 	if err != nil {
-		return false, fmt.Errorf("delete lock %q failed: %w", key, err)
+		return zero, fmt.Errorf("delete lock %q failed: %w", key, err)
 	}
 	return tag.RowsAffected() == 1, nil
 }

@@ -70,8 +70,16 @@ INSERT INTO later VALUES ('expired', now() - interval '1 minute');
 		require.NoError(t, insertErr)
 		cleanupCtx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
 		defer cancel()
-		cleaner.NewCleaner(pool, []string{"tokens"}).RunCleanups(cleanupCtx, 50*time.Millisecond)
+		cleaner.NewCleaner(pool, []string{"tokens"}, cleaner.WithInterval(50*time.Millisecond)).RunCleanups(cleanupCtx)
 		require.ElementsMatch(t, []string{"live"}, loadIDs(t, pool, "tokens"))
+	})
+
+	t.Run("non positive interval keeps the default", func(t *testing.T) {
+		cleanupCtx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		require.NotPanics(t, func() {
+			cleaner.NewCleaner(pool, []string{"tokens"}, cleaner.WithInterval(0)).RunCleanups(cleanupCtx)
+		})
 	})
 }
 

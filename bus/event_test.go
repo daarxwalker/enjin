@@ -175,11 +175,14 @@ func TestEvent(t *testing.T) {
 			stuck := requireSubscribe(t, e, 0)
 			require.NoError(t, e.Publish(ctx, 1))
 			done := make(chan struct{})
+			subscribed := make(chan error, 1)
 			go func() {
-				_, _ = e.Subscribe(1)
+				_, subscribeErr := e.Subscribe(1)
+				subscribed <- subscribeErr
 				close(done)
 			}()
 			requireDone(t, done)
+			require.NoError(t, <-subscribed)
 			e.Unsubscribe(stuck)
 			closeEvent(ctx, t, e)
 		},
@@ -221,7 +224,7 @@ func TestEvent(t *testing.T) {
 			}()
 			closeCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 			defer cancel()
-			_ = e.Close(closeCtx)
+			require.ErrorIs(t, e.Close(closeCtx), context.DeadlineExceeded)
 			require.ErrorIs(t, <-published, bus.ErrClosed)
 			requireClosed(t, stuck)
 		},

@@ -162,12 +162,14 @@ func (p parser) readMultipart(boundary string, body io.Reader, email emailAPIRow
 }
 
 func (p parser) parseDisposition(value string) (string, map[string]string, error) {
+	var zero string
+
 	if value == "" {
 		return "", nil, nil
 	}
 	disposition, params, err := mime.ParseMediaType(value)
 	if err != nil {
-		return "", nil, fmt.Errorf("parse content disposition failed: %w", err)
+		return zero, nil, fmt.Errorf("parse content disposition failed: %w", err)
 	}
 	return disposition, params, nil
 }

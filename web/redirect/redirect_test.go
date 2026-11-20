@@ -13,7 +13,7 @@ import (
 func TestRedirect(t *testing.T) {
 	t.Run(
 		"attach and read cookie", func(t *testing.T) {
-			h := newTestHandler()
+			h := newTestHandler(t)
 			attached := h.serve(httptest.NewRequest(http.MethodGet, "/attach?redirect=/account", nil))
 			cookies := attached.Result().Cookies()
 			require.Len(t, cookies, 1)
@@ -31,7 +31,7 @@ func TestRedirect(t *testing.T) {
 
 	t.Run(
 		"reject foreign query", func(t *testing.T) {
-			h := newTestHandler()
+			h := newTestHandler(t)
 			attached := h.serve(httptest.NewRequest(http.MethodGet, "/attach?redirect=//evil.com", nil))
 			require.Empty(t, attached.Result().Cookies())
 		},
@@ -39,7 +39,7 @@ func TestRedirect(t *testing.T) {
 
 	t.Run(
 		"reject foreign cookie", func(t *testing.T) {
-			h := newTestHandler()
+			h := newTestHandler(t)
 			r := httptest.NewRequest(http.MethodGet, "/read", nil)
 			r.AddCookie(&http.Cookie{Name: "X-Redirect", Value: "https://evil.com"})
 			require.Empty(t, h.serve(r).Body.String())
@@ -61,7 +61,8 @@ type testHandler struct {
 	handler http.Handler
 }
 
-func newTestHandler() *testHandler {
+func newTestHandler(t *testing.T) *testHandler {
+	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc(
 		"/attach", func(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +73,9 @@ func newTestHandler() *testHandler {
 	)
 	mux.HandleFunc(
 		"/read", func(w http.ResponseWriter, r *http.Request) {
-			_, _ = w.Write([]byte(redirect.FromCookie(w, r)))
+			if _, err := w.Write([]byte(redirect.FromCookie(w, r))); err != nil {
+				t.Errorf("write redirect target failed: %v", err)
+			}
 		},
 	)
 	return &testHandler{handler: redirect.NewManager().Middleware(mux)}

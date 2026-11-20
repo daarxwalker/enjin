@@ -52,7 +52,9 @@ func TestEngine(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() {
-			_ = listener.Close()
+			if closeErr := listener.Close(); closeErr != nil {
+				t.Errorf("close listener failed: %v", closeErr)
+			}
 		}()
 		cleaned := false
 		e := newTestEngine(t,
@@ -109,7 +111,9 @@ func TestEngine(t *testing.T) {
 			WithCleanup(func(context.Context) error {
 				conn, dialErr := net.Dial("tcp", addr)
 				if dialErr == nil {
-					_ = conn.Close()
+					if closeErr := conn.Close(); closeErr != nil {
+						t.Errorf("close probe connection failed: %v", closeErr)
+					}
 				}
 				listening = dialErr == nil
 				return cleanupErr
@@ -452,7 +456,9 @@ func freePort(t *testing.T) uint64 {
 		t.Fatal(err)
 	}
 	defer func() {
-		_ = listener.Close()
+		if closeErr := listener.Close(); closeErr != nil {
+			t.Errorf("close listener failed: %v", closeErr)
+		}
 	}()
 	return listenerPort(t, listener)
 }
@@ -476,7 +482,9 @@ func waitForHealthz(t *testing.T, addr string) {
 	for time.Now().Before(deadline) {
 		resp, err := http.Get("http://" + addr + "/healthz")
 		if err == nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Errorf("close healthz response failed: %v", closeErr)
+			}
 			return
 		}
 		time.Sleep(10 * time.Millisecond)

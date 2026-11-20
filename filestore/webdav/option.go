@@ -21,6 +21,8 @@ func WithBearerToken(token string) Option {
 
 func WithHTTPClient(client *http.Client) Option {
 	return func(d *Driver) {
-		d.client = client
+		if client != nil {
+			d.client = client
+		}
 	}
 }

@@ -33,9 +33,11 @@ func (d *RedisDriver) Add(
 }
 
 func (d *RedisDriver) Take(ctx context.Context, key, token string, now time.Time) (bool, error) {
+	var zero bool
+
 	taken, err := takeScript.Run(ctx, d.client, []string{key}, token, now.UnixMilli()).Int()
 	if err != nil {
-		return false, fmt.Errorf("take csrf token for %q failed: %w", key, err)
+		return zero, fmt.Errorf("take csrf token for %q failed: %w", key, err)
 	}
 	return taken == 1, nil
 }

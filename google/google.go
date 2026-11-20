@@ -55,7 +55,15 @@ func NewSAClient(config SAConfig, scopes ...string) (*http.Client, error) {
 	if jwtErr != nil {
 		return nil, fmt.Errorf("create google jwt config failed: %w", jwtErr)
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	defaultRoundTripper := http.DefaultTransport
+	if defaultRoundTripper == nil {
+		return nil, errors.New("clone http.DefaultTransport for google failed: it is nil")
+	}
+	defaultTransport, ok := defaultRoundTripper.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("clone http.DefaultTransport for google failed: it is a %T, not *http.Transport", defaultRoundTripper)
+	}
+	transport := defaultTransport.Clone()
 	transport.HTTP2 = &http.HTTP2Config{
 		SendPingTimeout:  googleSendPingTimeout,
 		PingTimeout:      googlePingTimeout,

@@ -77,7 +77,15 @@ func (d *Driver) readError(res *http.Response) error {
 		return fmt.Errorf("brevo responded %s, read body failed: %w", res.Status, err)
 	}
 	var apiErr errorAPIRow
-	if decodeErr := json.Unmarshal(body, &apiErr); decodeErr != nil || apiErr.Message == "" {
+	if decodeErr := json.Unmarshal(body, &apiErr); decodeErr != nil {
+		return fmt.Errorf(
+			"brevo responded %s: %s, decode its error body failed: %w",
+			res.Status,
+			bytes.TrimSpace(body),
+			decodeErr,
+		)
+	}
+	if apiErr.Message == "" {
 		return fmt.Errorf("brevo responded %s: %s", res.Status, bytes.TrimSpace(body))
 	}
 	return fmt.Errorf("brevo responded %s: %s: %s", res.Status, apiErr.Code, apiErr.Message)

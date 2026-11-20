@@ -45,6 +45,7 @@ func newWeb(ctx context.Context, rdb *redis.Client, logger *slog.Logger, secureC
 		append(
 			[]app.Option{
 				app.WithContext(ctx),
+				app.WithLogger(logger),
 				app.WithRouter(app.NewRouter(chi.NewRouter(), handler)),
 				app.WithMiddleware(web.CreateMiddlewareManager(
 					web.WithClient(client.NewManager(cacheClient,

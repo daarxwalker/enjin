@@ -49,6 +49,8 @@ func (repo *productRepo) list() []product {
 }
 
 func (repo *productRepo) get(id string) (product, error) {
+	var zero product
+
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	for _, p := range repo.products {
@@ -56,7 +58,7 @@ func (repo *productRepo) get(id string) (product, error) {
 			return p, nil
 		}
 	}
-	return product{}, fmt.Errorf("get product %s failed: %w", id, errProductNotFound)
+	return zero, fmt.Errorf("get product %s failed: %w", id, errProductNotFound)
 }
 
 func (repo *productRepo) create(name string, price int, createdBy string) product {

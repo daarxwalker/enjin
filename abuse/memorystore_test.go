@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -86,15 +87,21 @@ func TestMemoryStore(t *testing.T) {
 
 	t.Run("concurrent hits are counted exactly", func(t *testing.T) {
 		store := NewMemoryStore(t.Context())
-		var wg sync.WaitGroup
+		var (
+			wg       sync.WaitGroup
+			failures atomic.Int32
+		)
 		for range 8 {
 			wg.Go(func() {
 				for range 1000 {
-					_, _ = store.HitCounter(key, time.Hour, start)
+					if _, hitErr := store.HitCounter(key, time.Hour, start); hitErr != nil {
+						failures.Add(1)
+					}
 				}
 			})
 		}
 		wg.Wait()
+		require.Zero(t, failures.Load())
 		count, err := store.HitCounter(key, time.Hour, start)
 		require.NoError(t, err)
 		require.Equal(t, 8001, count)

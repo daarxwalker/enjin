@@ -3,6 +3,7 @@ package abuse
 import (
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -100,14 +101,20 @@ func TestMemorySnapshot(t *testing.T) {
 		data, err := source.marshalAt(start)
 		require.NoError(t, err)
 		restored := NewMemoryStore(t.Context())
-		var wg sync.WaitGroup
+		var (
+			wg       sync.WaitGroup
+			failures atomic.Int32
+		)
 		wg.Go(func() {
 			for range 100 {
-				_, _ = restored.CountDistinct(key, "b", 10, time.Hour, start)
+				if _, countErr := restored.CountDistinct(key, "b", 10, time.Hour, start); countErr != nil {
+					failures.Add(1)
+				}
 			}
 		})
 		require.NoError(t, restored.unmarshalAt(data, start))
 		wg.Wait()
+		require.Zero(t, failures.Load())
 	})
 
 	t.Run("rejects corrupted data", func(t *testing.T) {

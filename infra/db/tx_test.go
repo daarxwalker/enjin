@@ -78,9 +78,10 @@ func TestWithTx(t *testing.T) {
 				t.Fatalf("committed = %v, rolledBack = %v", tx.committed, tx.rolledBack)
 			}
 		}()
-		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+		err := db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
 			panic("boom")
 		})
+		t.Fatalf("WithTx returned %v, want a panic", err)
 	})
 
 	t.Run("panic with failed rollback keeps the panic", func(t *testing.T) {
@@ -88,27 +89,37 @@ func TestWithTx(t *testing.T) {
 		rbErr := errors.New("rollback failed")
 		tx := &fakeTx{rollbackErr: rbErr}
 		defer func() {
-			err, ok := recover().(error)
+			recovered := recover()
+			if recovered == nil {
+				t.Fatal("recovered nothing, want both panic and rollback errors")
+			}
+			err, ok := recovered.(error)
 			if !ok || !errors.Is(err, panicErr) || !errors.Is(err, rbErr) {
-				t.Fatalf("recovered = %v, want both panic and rollback errors", err)
+				t.Fatalf("recovered = %v, want both panic and rollback errors", recovered)
 			}
 		}()
-		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+		err := db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
 			panic(panicErr)
 		})
+		t.Fatalf("WithTx returned %v, want a panic", err)
 	})
 
 	t.Run("non error panic with failed rollback keeps its value", func(t *testing.T) {
 		rbErr := errors.New("rollback failed")
 		tx := &fakeTx{rollbackErr: rbErr}
 		defer func() {
-			err, ok := recover().(error)
+			recovered := recover()
+			if recovered == nil {
+				t.Fatal("recovered nothing, want boom with rollback error")
+			}
+			err, ok := recovered.(error)
 			if !ok || !errors.Is(err, rbErr) || !strings.HasPrefix(err.Error(), "boom: ") {
-				t.Fatalf("recovered = %v, want boom with rollback error", err)
+				t.Fatalf("recovered = %v, want boom with rollback error", recovered)
 			}
 		}()
-		_ = db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
+		err := db.WithTx(context.Background(), &fakeQuerier{tx: tx}, "test", func(pgx.Tx) error {
 			panic("boom")
 		})
+		t.Fatalf("WithTx returned %v, want a panic", err)
 	})
 }

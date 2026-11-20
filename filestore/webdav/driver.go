@@ -23,11 +23,14 @@ import (
 var _ filestore.Driver = (*Driver)(nil)
 
 type Driver struct {
-	client        *http.Client
-	collections   map[string]struct{}
-	authorization string
-	base          url.URL
-	collectionsMu sync.Mutex
+	client *http.Client
+	// propfindClient never follows redirects: net/http would turn a
+	// redirected PROPFIND into a GET.
+	propfindClient *http.Client
+	collections    map[string]struct{}
+	authorization  string
+	base           url.URL
+	collectionsMu  sync.Mutex
 }
 
 const (
@@ -49,6 +52,8 @@ var (
 	ErrInvalidKey       = errors.New("invalid filestore key")
 	ErrUnexpectedStatus = errors.New("unexpected webdav response status")
 )
+
+var errCollectionRedirect = errors.New("webdav server redirects to a collection")
 
 // NewDriver stores files under baseURL, a collection on a WebDAV server such
 // as https://cloud.example.com/remote.php/dav/files/app/.
@@ -77,6 +82,11 @@ func NewDriver(baseURL string, options ...Option) (*Driver, error) {
 	for _, option := range options {
 		option(d)
 	}
+	propfindClient := *d.client
+	propfindClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	d.propfindClient = &propfindClient
 	return d, nil
 }
 
@@ -157,7 +167,9 @@ func (d *Driver) Get(ctx context.Context, key string) (*filestore.Object, bool, 
 	if err != nil {
 		return nil, false, fmt.Errorf("send get of %q failed: %w", key, err)
 	}
-	if res.StatusCode == http.StatusOK {
+	// A server that redirects to the address with a slash (Apache) serves a
+	// collection listing, not the file.
+	if res.StatusCode == http.StatusOK && !strings.HasSuffix(res.Request.URL.Path, "/") {
 		object, objectErr := d.createObject(key, res)
 		if objectErr == nil {
 			return object, true, nil
@@ -169,8 +181,8 @@ func (d *Driver) Get(ctx context.Context, key string) (*filestore.Object, bool, 
 		return nil, false, getErr
 	}
 	var statusErr error
-	if res.StatusCode != http.StatusNotFound {
-		statusErr = fmt.Errorf("get file %q answered %s: %w", key, res.Status, ErrUnexpectedStatus)
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotFound {
+		statusErr = d.createGetStatusError(ctx, key, res.Status)
 	}
 	if closeErr := d.closeResponse(res); closeErr != nil {
 		return nil, false, errors.Join(statusErr, fmt.Errorf("finish get of %q failed: %w", key, closeErr))
@@ -293,15 +305,17 @@ func (d *Driver) createURL(name string, collection bool) string {
 // createKey turns an href (a path or an absolute URL, percent-encoded) back
 // into the key it names.
 func (d *Driver) createKey(href string) (string, error) {
+	var zero string
+
 	parsed, err := url.Parse(href)
 	if err != nil {
-		return "", fmt.Errorf("parse href %q failed: %w", href, err)
+		return zero, fmt.Errorf("parse href %q failed: %w", href, err)
 	}
 	if parsed.Path == strings.TrimSuffix(d.base.Path, "/") {
 		return "", nil
 	}
 	if !strings.HasPrefix(parsed.Path, d.base.Path) {
-		return "", fmt.Errorf("read href %q failed: it lies outside %s", href, d.base.Path)
+		return zero, fmt.Errorf("read href %q failed: it lies outside %s", href, d.base.Path)
 	}
 	return strings.TrimSuffix(strings.TrimPrefix(parsed.Path, d.base.Path), "/"), nil
 }
@@ -336,9 +350,33 @@ func (d *Driver) createObject(key string, res *http.Response) (*filestore.Object
 	return &filestore.Object{Body: res.Body, File: file}, nil
 }
 
+// createGetStatusError returns nil when key is a collection: servers answer a
+// GET on one with an error status (x/net/webdav with 405), and for a file
+// store it simply is no file.
+func (d *Driver) createGetStatusError(ctx context.Context, key, status string) error {
+	props, found, err := d.loadFileProps(ctx, key)
+	if err != nil {
+		return fmt.Errorf("get file %q answered %s, check for a collection failed: %w", key, status, err)
+	}
+	if found && props.ResourceType.Collection.Local != "" {
+		return nil
+	}
+	return fmt.Errorf("get file %q answered %s: %w", key, status, ErrUnexpectedStatus)
+}
+
+// loadFileProps follows a redirect to the address with a slash itself: such
+// a redirect means key names a collection.
 func (d *Driver) loadFileProps(ctx context.Context, key string) (propDAVRow, bool, error) {
-	var zero propDAVRow
-	responses, found, err := d.loadResponses(ctx, key, false, "0")
+	var (
+		zero      propDAVRow
+		responses []responseDAVRow
+		found     bool
+		err       error
+	)
+	responses, found, err = d.loadResponses(ctx, key, false, "0")
+	if errors.Is(err, errCollectionRedirect) {
+		responses, found, err = d.loadResponses(ctx, key, true, "0")
+	}
 	if err != nil {
 		return zero, false, fmt.Errorf("load properties failed: %w", err)
 	}
@@ -368,7 +406,7 @@ func (d *Driver) loadResponses(
 	}
 	req.Header.Set("Depth", depth)
 	req.Header.Set("Content-Type", "application/xml; charset=utf-8")
-	res, err := d.client.Do(req)
+	res, err := d.propfindClient.Do(req)
 	if err != nil {
 		return nil, false, fmt.Errorf("send propfind of %q failed: %w", name, err)
 	}
@@ -380,6 +418,9 @@ func (d *Driver) loadResponses(
 	if res.StatusCode == http.StatusNotFound {
 		return nil, false, nil
 	}
+	if d.redirectsToCollection(res) {
+		return nil, false, fmt.Errorf("propfind %q answered %s: %w", name, res.Status, errCollectionRedirect)
+	}
 	if res.StatusCode != http.StatusMultiStatus {
 		return nil, false, fmt.Errorf("propfind %q answered %s: %w", name, res.Status, ErrUnexpectedStatus)
 	}
@@ -388,6 +429,15 @@ func (d *Driver) loadResponses(
 		return nil, false, fmt.Errorf("decode propfind answer for %q failed: %w", name, decodeErr)
 	}
 	return multistatus.Responses, true, nil
+}
+
+func (d *Driver) redirectsToCollection(res *http.Response) bool {
+	switch res.StatusCode {
+	case http.StatusMovedPermanently, http.StatusFound, http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
+		return strings.HasSuffix(res.Header.Get("Location"), "/")
+	default:
+		return false
+	}
 }
 
 func (d *Driver) findOKProps(response responseDAVRow) (propDAVRow, bool) {
@@ -491,17 +541,22 @@ func (d *Driver) createCollection(ctx context.Context, collection string) error 
 	return statusErr
 }
 
-// sendFile hides the Close of body from net/http, which would otherwise close
-// a caller's *os.File, and sets the length itself for the same reason.
+// sendFile returns only after net/http has released the body (see
+// uploadBody), so Put may seek it back for a retry.
 func (d *Driver) sendFile(ctx context.Context, key string, body io.Reader, size int64, contentType string) (int, error) {
-	req, err := d.createRequest(ctx, http.MethodPut, d.createURL(key, false), io.NopCloser(body))
+	var zero int
+	upload := newUploadBody(body)
+	req, err := d.createRequest(ctx, http.MethodPut, d.createURL(key, false), upload)
 	if err != nil {
-		return 0, fmt.Errorf("send file failed: %w", err)
+		return zero, fmt.Errorf("send file failed: %w", err)
 	}
 	switch {
 	case size == 0:
 		req.Body = http.NoBody
 		req.ContentLength = 0
+		if closeErr := upload.Close(); closeErr != nil {
+			return zero, fmt.Errorf("release unused upload body failed: %w", closeErr)
+		}
 	case size > 0:
 		req.ContentLength = size
 	}
@@ -510,10 +565,13 @@ func (d *Driver) sendFile(ctx context.Context, key string, body io.Reader, size 
 	}
 	res, err := d.client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("send put failed: %w", err)
+		return zero, fmt.Errorf("send put failed: %w", err)
 	}
 	if closeErr := d.closeResponse(res); closeErr != nil {
 		return res.StatusCode, fmt.Errorf("finish put failed: %w", closeErr)
+	}
+	if waitErr := upload.waitForClose(ctx); waitErr != nil {
+		return res.StatusCode, fmt.Errorf("finish put failed: %w", waitErr)
 	}
 	return res.StatusCode, nil
 }

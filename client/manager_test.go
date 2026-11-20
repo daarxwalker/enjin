@@ -175,7 +175,9 @@ func newTestClient(t *testing.T, redisClient *redis.Client) *testClient {
 	)
 	mux.HandleFunc(
 		"/value", func(w http.ResponseWriter, r *http.Request) {
-			_, _ = w.Write([]byte(ValueFrom[string](r.Context(), "a")))
+			if _, err := w.Write([]byte(ValueFrom[string](r.Context(), "a"))); err != nil {
+				t.Errorf("write value failed: %v", err)
+			}
 		},
 	)
 	mux.HandleFunc(
@@ -183,12 +185,16 @@ func newTestClient(t *testing.T, redisClient *redis.Client) *testClient {
 			AttachValue(r.Context(), "int", 42)
 			AttachValue(r.Context(), "struct", typedValue{Name: "a", Count: 2})
 			AttachValue(r.Context(), "slice", []string{"x", "y"})
-			_, _ = fmt.Fprint(w, formatTypedValues(r.Context()))
+			if _, err := fmt.Fprint(w, formatTypedValues(r.Context())); err != nil {
+				t.Errorf("write attached typed values failed: %v", err)
+			}
 		},
 	)
 	mux.HandleFunc(
 		"/typed", func(w http.ResponseWriter, r *http.Request) {
-			_, _ = fmt.Fprint(w, formatTypedValues(r.Context()))
+			if _, err := fmt.Fprint(w, formatTypedValues(r.Context())); err != nil {
+				t.Errorf("write typed values failed: %v", err)
+			}
 		},
 	)
 

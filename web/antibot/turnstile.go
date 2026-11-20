@@ -57,16 +57,18 @@ func (m *TurnstileDriver) CreateWidget(ctx context.Context) templ.Component {
 }
 
 func (m *TurnstileDriver) Verify(r *http.Request) (success bool, err error) {
+	var zero bool
+
 	token := r.FormValue(turnstileFormValueName)
 	if token == "" {
-		return false, errors.New("cf turnstile no token provided")
+		return zero, errors.New("cf turnstile no token provided")
 	}
 	ok, verifyErr := m.callVerificationEndpoint(r.Context(), m.secret, token, httpx.ClientIP(r))
 	if verifyErr != nil {
-		return false, fmt.Errorf("cf turnstile verify token failed: %w", verifyErr)
+		return zero, fmt.Errorf("cf turnstile verify token failed: %w", verifyErr)
 	}
 	if !ok {
-		return false, errors.New("cf turnstile token rejected")
+		return zero, errors.New("cf turnstile token rejected")
 	}
 	return true, nil
 }
@@ -75,6 +77,8 @@ func (m *TurnstileDriver) callVerificationEndpoint(
 	ctx context.Context,
 	secret, token, remoteIP string,
 ) (success bool, err error) {
+	var zero bool
+
 	ctx, cancel := context.WithTimeout(ctx, turnstileTimeout)
 	defer cancel()
 
@@ -90,14 +94,14 @@ func (m *TurnstileDriver) callVerificationEndpoint(
 		strings.NewReader(data.Encode()),
 	)
 	if reqErr != nil {
-		return false, fmt.Errorf("create cf turnstile verification request failed: %w", reqErr)
+		return zero, fmt.Errorf("create cf turnstile verification request failed: %w", reqErr)
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, verifyErr := m.client.Do(req)
 	if verifyErr != nil {
-		return false, fmt.Errorf("cf turnstile verification failed: %w", verifyErr)
+		return zero, fmt.Errorf("cf turnstile verification failed: %w", verifyErr)
 	}
 	defer func() {
 		if closeErr := res.Body.Close(); closeErr != nil {
@@ -106,12 +110,12 @@ func (m *TurnstileDriver) callVerificationEndpoint(
 	}()
 
 	if res.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("cf turnstile verification failed with status code %d", res.StatusCode)
+		return zero, fmt.Errorf("cf turnstile verification failed with status code %d", res.StatusCode)
 	}
 
 	var result turnstileResponse
 	if decodeErr := json.NewDecoder(res.Body).Decode(&result); decodeErr != nil {
-		return false, fmt.Errorf("decode cf turnstile verification response failed: %w", decodeErr)
+		return zero, fmt.Errorf("decode cf turnstile verification response failed: %w", decodeErr)
 	}
 
 	if len(result.Errors) > 0 {

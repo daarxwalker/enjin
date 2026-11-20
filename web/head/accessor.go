@@ -12,6 +12,13 @@ func From(ctx context.Context) *ContextValue {
 }
 
 func from(ctx context.Context) *ContextValue {
-	c, _ := ctx.Value(key).(*ContextValue)
+	val := ctx.Value(key)
+	if val == nil {
+		return nil
+	}
+	c, ok := val.(*ContextValue)
+	if !ok {
+		return nil
+	}
 	return c
 }

@@ -19,7 +19,7 @@ import (
 func TestAPI(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
 	t.Cleanup(func() {
-		_ = rdb.Close()
+		require.NoError(t, rdb.Close())
 	})
 	api, err := newAPI(context.Background(), rdb, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)

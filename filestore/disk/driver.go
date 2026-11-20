@@ -381,11 +381,14 @@ func (d *Driver) writeFileAtomically(
 }
 
 func (d *Driver) createTempFile(dir string) (*os.File, string, error) {
-	var lastErr error
+	var (
+		zero    string
+		lastErr error
+	)
 	for range tempAttempts {
 		if dir != "." {
 			if err := d.root.MkdirAll(filepath.FromSlash(dir), d.dirMode); err != nil {
-				return nil, "", fmt.Errorf("create dir %s failed: %w", dir, err)
+				return nil, zero, fmt.Errorf("create dir %s failed: %w", dir, err)
 			}
 		}
 		tempName := filepath.FromSlash(path.Join(dir, tempPrefix+rand.Text()))
@@ -394,11 +397,11 @@ func (d *Driver) createTempFile(dir string) (*os.File, string, error) {
 			return file, tempName, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, "", fmt.Errorf("open temporary file %s failed: %w", tempName, err)
+			return nil, zero, fmt.Errorf("open temporary file %s failed: %w", tempName, err)
 		}
 		lastErr = fmt.Errorf("open temporary file %s failed: %w", tempName, err)
 	}
-	return nil, "", lastErr
+	return nil, zero, lastErr
 }
 
 func (d *Driver) closeFile(file *os.File) error {
@@ -456,12 +459,14 @@ func (d *Driver) removeEmptyDirs(dir string) error {
 }
 
 func (d *Driver) hasNoEntries(dir string) (bool, error) {
+	var zero bool
+
 	entries, err := fs.ReadDir(d.root.FS(), dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("read dir %s failed: %w", dir, err)
+		return zero, fmt.Errorf("read dir %s failed: %w", dir, err)
 	}
 	return len(entries) == 0, nil
 }

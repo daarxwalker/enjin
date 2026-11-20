@@ -15,13 +15,16 @@ import (
 var specialCharProtector = strings.NewReplacer("&lt;", "&#60;", "&gt;", "&#62;")
 
 func Render(ctx context.Context, component templ.Component) (string, error) {
-	var buf bytes.Buffer
+	var (
+		zero string
+		buf  bytes.Buffer
+	)
 	if renderErr := component.Render(ctx, &buf); renderErr != nil {
-		return "", fmt.Errorf("render mail templ failed: %w", renderErr)
+		return zero, fmt.Errorf("render mail templ failed: %w", renderErr)
 	}
 	content, mjmlErr := mjml.Render(specialCharProtector.Replace(buf.String()))
 	if mjmlErr != nil {
-		return "", fmt.Errorf("render mail mjml failed: %w", mjmlErr)
+		return zero, fmt.Errorf("render mail mjml failed: %w", mjmlErr)
 	}
 	return content, nil
 }

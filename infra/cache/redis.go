@@ -47,25 +47,31 @@ func (d *RedisDriver) Set(ctx context.Context, key string, value []byte, ttl tim
 }
 
 func (d *RedisDriver) UpdateExpiration(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	var zero bool
+
 	updated, err := d.client.PExpire(ctx, key, ttl).Result()
 	if err != nil {
-		return false, fmt.Errorf("update cache expiration of %q failed: %w", key, err)
+		return zero, fmt.Errorf("update cache expiration of %q failed: %w", key, err)
 	}
 	return updated, nil
 }
 
 func (d *RedisDriver) Exists(ctx context.Context, key string) (bool, error) {
+	var zero bool
+
 	n, err := d.client.Exists(ctx, key).Result()
 	if err != nil {
-		return false, fmt.Errorf("check cache existence of %q failed: %w", key, err)
+		return zero, fmt.Errorf("check cache existence of %q failed: %w", key, err)
 	}
 	return n == 1, nil
 }
 
 func (d *RedisDriver) TTL(ctx context.Context, key string) (time.Duration, bool, error) {
+	var zero time.Duration
+
 	ttl, err := d.client.PTTL(ctx, key).Result()
 	if err != nil {
-		return 0, false, fmt.Errorf("get cache ttl of %q failed: %w", key, err)
+		return zero, false, fmt.Errorf("get cache ttl of %q failed: %w", key, err)
 	}
 	if ttl < 0 {
 		return 0, false, nil
@@ -74,9 +80,11 @@ func (d *RedisDriver) TTL(ctx context.Context, key string) (time.Duration, bool,
 }
 
 func (d *RedisDriver) Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, error) {
+	var zero int64
+
 	value, err := incrementScript.Run(ctx, d.client, []string{key}, delta, ttl.Milliseconds()).Int64()
 	if err != nil {
-		return 0, fmt.Errorf("increment cache value %q by %d failed: %w", key, delta, err)
+		return zero, fmt.Errorf("increment cache value %q by %d failed: %w", key, delta, err)
 	}
 	return value, nil
 }

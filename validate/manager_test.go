@@ -86,7 +86,9 @@ func newTestClient(t *testing.T) *testClient {
 	)
 	mux.HandleFunc(
 		"/read", func(w http.ResponseWriter, r *http.Request) {
-			_ = json.NewEncoder(w).Encode(validate.From(r.Context()))
+			if err := json.NewEncoder(w).Encode(validate.From(r.Context())); err != nil {
+				t.Errorf("encode validation failed: %v", err)
+			}
 		},
 	)
 	clientManager := client.NewManager(cacheClient, client.WithConfig(cookie.WithSecure(false)))
@@ -107,7 +109,7 @@ func (c *testClient) get(path string) []byte {
 	res, err := c.http.Get(c.url + path)
 	require.NoError(c.t, err)
 	defer func() {
-		_ = res.Body.Close()
+		require.NoError(c.t, res.Body.Close())
 	}()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(c.t, err)

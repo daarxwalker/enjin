@@ -84,6 +84,8 @@ func (s *Store) Middleware(next http.Handler) http.Handler {
 }
 
 func (s *Store) Seed(ctx context.Context, options ...AttachOption) (string, error) {
+	var zero string
+
 	p := &Profile{
 		Token: token.New(),
 	}
@@ -91,12 +93,14 @@ func (s *Store) Seed(ctx context.Context, options ...AttachOption) (string, erro
 		option(p)
 	}
 	if err := saveProfileToCache(ctx, s.cache, p, s.cookie.TTL); err != nil {
-		return "", fmt.Errorf("seed session failed: %w", err)
+		return zero, fmt.Errorf("seed session failed: %w", err)
 	}
 	return p.Token, nil
 }
 
 func (s *Store) getToken(r *http.Request, cv *ctxVal) (string, error) {
+	var zero string
+
 	if s.bearer {
 		if value := getTokenFromHeader(r); value != "" {
 			cv.bearer = true
@@ -105,7 +109,7 @@ func (s *Store) getToken(r *http.Request, cv *ctxVal) (string, error) {
 	}
 	value, err := getTokenFromCookie(r, s.cookie.Name)
 	if err != nil {
-		return "", fmt.Errorf("get session token from cookie %s failed: %w", s.cookie.Name, err)
+		return zero, fmt.Errorf("get session token from cookie %s failed: %w", s.cookie.Name, err)
 	}
 	return value, nil
 }

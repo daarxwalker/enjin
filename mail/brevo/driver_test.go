@@ -15,6 +15,7 @@ import (
 )
 
 type brevoTestServer struct {
+	t        *testing.T
 	server   *httptest.Server
 	header   http.Header
 	payload  map[string]any
@@ -136,7 +137,7 @@ func TestDriver(t *testing.T) {
 
 func newBrevoTestServer(t *testing.T, status int, response string) *brevoTestServer {
 	t.Helper()
-	srv := &brevoTestServer{status: status, response: response}
+	srv := &brevoTestServer{t: t, status: status, response: response}
 	srv.server = httptest.NewServer(http.HandlerFunc(srv.handle))
 	t.Cleanup(srv.server.Close)
 	return srv
@@ -159,5 +160,7 @@ func (s *brevoTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(s.status)
-	_, _ = io.WriteString(w, s.response)
+	if _, err = io.WriteString(w, s.response); err != nil {
+		s.t.Errorf("write brevo test response failed: %v", err)
+	}
 }

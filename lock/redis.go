@@ -28,17 +28,21 @@ func (d *RedisDriver) TryLock(
 	key, token string,
 	ttl time.Duration,
 ) (bool, error) {
+	var zero bool
+
 	ok, err := d.client.SetNX(ctx, key, token, ttl).Result()
 	if err != nil {
-		return false, fmt.Errorf("set lock %q failed: %w", key, err)
+		return zero, fmt.Errorf("set lock %q failed: %w", key, err)
 	}
 	return ok, nil
 }
 
 func (d *RedisDriver) Unlock(ctx context.Context, key, token string) (bool, error) {
+	var zero bool
+
 	deleted, err := unlockScript.Run(ctx, d.client, []string{key}, token).Int()
 	if err != nil {
-		return false, fmt.Errorf("delete lock %q failed: %w", key, err)
+		return zero, fmt.Errorf("delete lock %q failed: %w", key, err)
 	}
 	return deleted == 1, nil
 }

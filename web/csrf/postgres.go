@@ -44,13 +44,16 @@ func (d *PostgresDriver) Add(ctx context.Context, key, token string, expiresAt t
 }
 
 func (d *PostgresDriver) Take(ctx context.Context, key, token string, now time.Time) (bool, error) {
-	var expiresAt time.Time
+	var (
+		zero      bool
+		expiresAt time.Time
+	)
 	err := d.querier.QueryRow(ctx, takeEntrySQL, key, token).Scan(&expiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("take csrf token for %q failed: %w", key, err)
+		return zero, fmt.Errorf("take csrf token for %q failed: %w", key, err)
 	}
 	return expiresAt.After(now), nil
 }

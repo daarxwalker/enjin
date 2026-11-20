@@ -92,39 +92,42 @@ func (c composer) compose(message Message, sentAt time.Time) ([]byte, error) {
 }
 
 func (c composer) createRoot(message Message) (part, error) {
-	var body part
+	var (
+		zero part
+		body part
+	)
 	switch {
 	case message.HTML != "" && message.Text != "":
 		textPart, err := c.createTextPart("text/plain", message.Text)
 		if err != nil {
-			return part{}, fmt.Errorf("create text part failed: %w", err)
+			return zero, fmt.Errorf("create text part failed: %w", err)
 		}
 		htmlPart, err := c.createTextPart("text/html", message.HTML)
 		if err != nil {
-			return part{}, fmt.Errorf("create html part failed: %w", err)
+			return zero, fmt.Errorf("create html part failed: %w", err)
 		}
 		body = part{subtype: "alternative", children: []part{textPart, htmlPart}}
 	case message.HTML != "":
 		htmlPart, err := c.createTextPart("text/html", message.HTML)
 		if err != nil {
-			return part{}, fmt.Errorf("create html part failed: %w", err)
+			return zero, fmt.Errorf("create html part failed: %w", err)
 		}
 		body = htmlPart
 	case message.Text != "":
 		textPart, err := c.createTextPart("text/plain", message.Text)
 		if err != nil {
-			return part{}, fmt.Errorf("create text part failed: %w", err)
+			return zero, fmt.Errorf("create text part failed: %w", err)
 		}
 		body = textPart
 	default:
-		return part{}, errors.New("message has no body")
+		return zero, errors.New("message has no body")
 	}
 	if len(message.Embeds) > 0 {
 		children := []part{body}
 		for _, embed := range message.Embeds {
 			embedPart, err := c.createEmbedPart(embed)
 			if err != nil {
-				return part{}, fmt.Errorf("create embed %q part failed: %w", embed.Name, err)
+				return zero, fmt.Errorf("create embed %q part failed: %w", embed.Name, err)
 			}
 			children = append(children, embedPart)
 		}
@@ -135,7 +138,7 @@ func (c composer) createRoot(message Message) (part, error) {
 		for _, attachment := range message.Attachments {
 			attachmentPart, err := c.createAttachmentPart(attachment)
 			if err != nil {
-				return part{}, fmt.Errorf("create attachment %q part failed: %w", attachment.Name, err)
+				return zero, fmt.Errorf("create attachment %q part failed: %w", attachment.Name, err)
 			}
 			children = append(children, attachmentPart)
 		}
@@ -145,13 +148,16 @@ func (c composer) createRoot(message Message) (part, error) {
 }
 
 func (c composer) createTextPart(contentType, text string) (part, error) {
-	var buf bytes.Buffer
+	var (
+		zero part
+		buf  bytes.Buffer
+	)
 	writer := quotedprintable.NewWriter(&buf)
 	if _, err := writer.Write([]byte(text)); err != nil {
-		return part{}, fmt.Errorf("encode %s body failed: %w", contentType, err)
+		return zero, fmt.Errorf("encode %s body failed: %w", contentType, err)
 	}
 	if err := writer.Close(); err != nil {
-		return part{}, fmt.Errorf("encode %s body failed: %w", contentType, err)
+		return zero, fmt.Errorf("encode %s body failed: %w", contentType, err)
 	}
 	header := make(textproto.MIMEHeader)
 	header.Set("Content-Type", mime.FormatMediaType(contentType, map[string]string{"charset": "UTF-8"}))
@@ -160,21 +166,25 @@ func (c composer) createTextPart(contentType, text string) (part, error) {
 }
 
 func (c composer) createEmbedPart(embed File) (part, error) {
+	var zero part
+
 	if !c.isContentID(embed.Name) {
-		return part{}, fmt.Errorf("embed name %q is not a valid content id", embed.Name)
+		return zero, fmt.Errorf("embed name %q is not a valid content id", embed.Name)
 	}
 	header, err := c.createFileHeader(embed, "inline")
 	if err != nil {
-		return part{}, fmt.Errorf("create embed %q header failed: %w", embed.Name, err)
+		return zero, fmt.Errorf("create embed %q header failed: %w", embed.Name, err)
 	}
 	header.Set("Content-ID", "<"+embed.Name+">")
 	return part{header: header, body: c.encodeBase64(embed.Bytes)}, nil
 }
 
 func (c composer) createAttachmentPart(attachment File) (part, error) {
+	var zero part
+
 	header, err := c.createFileHeader(attachment, "attachment")
 	if err != nil {
-		return part{}, fmt.Errorf("create attachment %q header failed: %w", attachment.Name, err)
+		return zero, fmt.Errorf("create attachment %q header failed: %w", attachment.Name, err)
 	}
 	return part{header: header, body: c.encodeBase64(attachment.Bytes)}, nil
 }
@@ -237,11 +247,13 @@ func (c composer) render(p part) (textproto.MIMEHeader, []byte, error) {
 }
 
 func (c composer) formatAddressList(addresses []string) (string, error) {
+	var zero string
+
 	formatted := make([]string, 0, len(addresses))
 	for _, value := range addresses {
 		address, err := mail.ParseAddress(value)
 		if err != nil {
-			return "", fmt.Errorf("parse address %q failed: %w", value, err)
+			return zero, fmt.Errorf("parse address %q failed: %w", value, err)
 		}
 		formatted = append(formatted, address.String())
 	}

@@ -14,7 +14,11 @@ func TestClient(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(strings.Repeat("x", 1<<20)))
+			// The client reads only the start of an error body and closes the
+			// connection, so a failed write is expected and only logged.
+			if _, err := w.Write([]byte(strings.Repeat("x", 1<<20))); err != nil {
+				t.Logf("write large error body stopped: %v", err)
+			}
 		}))
 		defer srv.Close()
 
@@ -25,7 +29,9 @@ func TestClient(t *testing.T) {
 		res, err := httpx.NewClient().Do(req)
 		if res != nil {
 			defer func() {
-				_ = res.Body.Close()
+				if closeErr := res.Body.Close(); closeErr != nil {
+					t.Errorf("close response body failed: %v", closeErr)
+				}
 			}()
 		}
 		if err == nil {

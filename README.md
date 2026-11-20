@@ -204,7 +204,7 @@ cacheClient := cache.NewClient(cache.NewPostgresDriver(pool))
 csrfInput := csrf.NewInputManager(csrf.NewPostgresDriver(pool))
 locker := lock.NewManager(lock.NewPostgresDriver(pool), time.Minute)
 
-go cleaner.NewCleaner(pool, keyvalue.Tables(), cleaner.WithLogger(logger)).RunCleanups(ctx, time.Minute)
+go cleaner.NewCleaner(pool, keyvalue.Tables(), cleaner.WithLogger(logger)).RunCleanups(ctx)
 ```
 
 Create the tables from `infra/db/migrations/keyvalue.FS` only when you use these

@@ -55,6 +55,9 @@ func RunDriverSuite(t *testing.T, subject Subject) {
 	t.Run("delete", func(t *testing.T) {
 		checkDelete(t, subject.Driver)
 	})
+	t.Run("directory key is no file", func(t *testing.T) {
+		checkDirectoryKey(t, subject.Driver)
+	})
 }
 
 func checkPutAndGet(t *testing.T, subject Subject) {
@@ -201,6 +204,26 @@ func checkDelete(t *testing.T, driver filestore.Driver) {
 	require.Equal(t, []string{"suite-delete/kept.txt"}, listKeys(t, driver, "suite-delete/"))
 
 	require.NoError(t, driver.Delete(ctx, key))
+}
+
+// checkDirectoryKey covers stores with real directories (disk, WebDAV): the
+// key of a directory reads as missing, and deleting it removes nothing.
+func checkDirectoryKey(t *testing.T, driver filestore.Driver) {
+	ctx := t.Context()
+	key := "suite-dir/inner/file.txt"
+	requirePut(t, driver, key, []byte("kept"), "text/plain")
+
+	object, exists, err := driver.Get(ctx, "suite-dir/inner")
+	require.NoError(t, err)
+	require.False(t, exists)
+	require.Nil(t, object)
+
+	_, exists, err = driver.Stat(ctx, "suite-dir/inner")
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	require.NoError(t, driver.Delete(ctx, "suite-dir/inner"))
+	requireGet(t, driver, key, []byte("kept"))
 }
 
 // requireContentType compares only the media type when the store derives the

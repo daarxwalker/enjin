@@ -68,6 +68,7 @@ func (d *PostgresDriver) Set(ctx context.Context, key string, value []byte, ttl 
 // Redis PEXPIRE.
 func (d *PostgresDriver) UpdateExpiration(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	var (
+		zero  bool
 		query = updateExpirationSQL
 		args  = []any{key, expiresIn(ttl)}
 	)
@@ -77,7 +78,7 @@ func (d *PostgresDriver) UpdateExpiration(ctx context.Context, key string, ttl t
 	}
 	tag, err := d.querier.Exec(ctx, query, args...)
 	if err != nil {
-		return false, fmt.Errorf("update cache expiration of %q failed: %w", key, err)
+		return zero, fmt.Errorf("update cache expiration of %q failed: %w", key, err)
 	}
 	return tag.RowsAffected() == 1, nil
 }
@@ -90,9 +91,12 @@ func (d *PostgresDriver) Delete(ctx context.Context, key string) error {
 }
 
 func (d *PostgresDriver) Exists(ctx context.Context, key string) (bool, error) {
-	var exists bool
+	var (
+		zero   bool
+		exists bool
+	)
 	if err := d.querier.QueryRow(ctx, loadExistenceSQL, key).Scan(&exists); err != nil {
-		return false, fmt.Errorf("load cache existence of %q failed: %w", key, err)
+		return zero, fmt.Errorf("load cache existence of %q failed: %w", key, err)
 	}
 	return exists, nil
 }

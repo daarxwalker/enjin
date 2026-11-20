@@ -13,9 +13,11 @@ const (
 )
 
 func getTokenFromCookie(r *http.Request, cookieName string) (string, error) {
+	var zero string
+
 	cookie, err := r.Cookie(cookieName)
 	if err != nil && !errors.Is(err, http.ErrNoCookie) {
-		return "", fmt.Errorf("read cookie %s failed: %w", cookieName, err)
+		return zero, fmt.Errorf("read cookie %s failed: %w", cookieName, err)
 	}
 	if cookie == nil || !token.Valid(cookie.Value) {
 		return "", nil

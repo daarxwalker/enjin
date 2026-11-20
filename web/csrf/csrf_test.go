@@ -265,7 +265,9 @@ func TestCookieManager(t *testing.T) {
 		"reject missing cookie", func(t *testing.T) {
 			c := newCookieClient(t)
 			csrfToken := c.cookie().Value
-			c.http.Jar, _ = cookiejar.New(nil)
+			jar, err := cookiejar.New(nil)
+			require.NoError(t, err)
+			c.http.Jar = jar
 			require.Equal(t, http.StatusForbidden, c.submit(csrfToken))
 		},
 	)
@@ -296,7 +298,9 @@ func newInputClient(t *testing.T, redisClient *redis.Client, driver Driver, opti
 	r.Use(client.NewManager(cache.NewClient(cache.NewRedisDriver(redisClient))).Middleware, csrf.Middleware)
 	r.Get(
 		"/", func(w http.ResponseWriter, r *http.Request) {
-			_, _ = w.Write([]byte(csrf.Create(r.Context())))
+			if _, err := w.Write([]byte(csrf.Create(r.Context()))); err != nil {
+				t.Errorf("write csrf token failed: %v", err)
+			}
 		},
 	)
 	r.With(csrf.Verify).Post(
@@ -334,7 +338,7 @@ func (c *inputClient) token() string {
 	res, err := c.http.Get(c.endpoint)
 	require.NoError(c.t, err)
 	defer func() {
-		_ = res.Body.Close()
+		require.NoError(c.t, res.Body.Close())
 	}()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(c.t, err)

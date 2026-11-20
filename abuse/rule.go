@@ -96,13 +96,15 @@ func (r rateLimitRule) Name() string {
 }
 
 func (r rateLimitRule) CheckRequest(req *http.Request, id Identity, store Store, namespace string, now time.Time) (Decision, error) {
+	var zero Decision
+
 	value := r.countedBy.readValue(req, id)
 	if value == "" {
 		return Decision{}, nil
 	}
 	count, err := store.HitCounter(Key{Namespace: namespace, Value: value}, r.per, now)
 	if err != nil {
-		return Decision{}, fmt.Errorf("hit %s failed: %w", r.name, err)
+		return zero, fmt.Errorf("hit %s failed: %w", r.name, err)
 	}
 	if count <= r.limit {
 		return Decision{}, nil
@@ -115,6 +117,8 @@ func (r distinctURLParamRule) Name() string {
 }
 
 func (r distinctURLParamRule) CheckRequest(req *http.Request, id Identity, store Store, namespace string, now time.Time) (Decision, error) {
+	var zero Decision
+
 	value := r.countedBy.readValue(req, id)
 	if value == "" {
 		return Decision{}, nil
@@ -125,7 +129,7 @@ func (r distinctURLParamRule) CheckRequest(req *http.Request, id Identity, store
 	}
 	count, err := store.CountDistinct(Key{Namespace: namespace, Value: value}, member, r.limit, r.per, now)
 	if err != nil {
-		return Decision{}, fmt.Errorf("distinct %s failed: %w", r.name, err)
+		return zero, fmt.Errorf("distinct %s failed: %w", r.name, err)
 	}
 	if count <= r.limit {
 		return Decision{}, nil

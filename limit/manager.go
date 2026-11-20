@@ -75,13 +75,15 @@ func (m *Manager) ResetIn(ctx context.Context) time.Duration {
 }
 
 func (m *Manager) Consume(ctx context.Context) (bool, error) {
+	var zero bool
+
 	s, ok := m.stateFrom(ctx)
 	if !ok {
-		return false, fmt.Errorf("consume limit %s failed: %w", m.name, ErrNotLoaded)
+		return zero, fmt.Errorf("consume limit %s failed: %w", m.name, ErrNotLoaded)
 	}
 	_, allowed, err := m.consume(ctx, s.cacheKey)
 	if err != nil {
-		return false, fmt.Errorf("consume limit %s failed: %w", m.name, err)
+		return zero, fmt.Errorf("consume limit %s failed: %w", m.name, err)
 	}
 	return allowed, nil
 }
@@ -143,16 +145,18 @@ func (m *Manager) Verify(next http.Handler) http.Handler {
 }
 
 func (m *Manager) consume(ctx context.Context, cacheKey string) (int, bool, error) {
+	var zero int
+
 	count, err := m.cache.Increment(ctx, cacheKey, 1, m.ttl)
 	if err != nil {
-		return 0, false, fmt.Errorf("consume limit failed: %w", err)
+		return zero, false, fmt.Errorf("consume limit failed: %w", err)
 	}
 	if count <= m.max {
 		return count, true, nil
 	}
 	count, err = m.cache.Increment(ctx, cacheKey, -1, m.ttl)
 	if err != nil {
-		return 0, false, fmt.Errorf("revert exceeded limit failed: %w", err)
+		return zero, false, fmt.Errorf("revert exceeded limit failed: %w", err)
 	}
 	return count, false, nil
 }

@@ -18,17 +18,19 @@ func MustURL(ctx context.Context, name string, params ...map[string]any) string 
 }
 
 func URL(ctx context.Context, name string, params ...map[string]any) (string, error) {
+	var zero string
+
 	req := httpx.From(ctx)
 	if req == nil {
-		return "", fmt.Errorf("build url %s failed: %w", name, ErrNoRouter)
+		return zero, fmt.Errorf("build url %s failed: %w", name, ErrNoRouter)
 	}
 	router := RouterFrom(ctx)
 	if router == nil {
-		return "", fmt.Errorf("build url %s failed: %w", name, ErrNoRouter)
+		return zero, fmt.Errorf("build url %s failed: %w", name, ErrNoRouter)
 	}
 	route, ok := router.routeSet[name]
 	if !ok {
-		return "", fmt.Errorf("%w: %s", ErrRouteNotFound, name)
+		return zero, fmt.Errorf("%w: %s", ErrRouteNotFound, name)
 	}
 	path := route.pattern
 	query := make(url.Values)
@@ -47,7 +49,7 @@ func URL(ctx context.Context, name string, params ...map[string]any) (string, er
 	}
 	path, err := url.JoinPath("/", req.PathPrefix, path)
 	if err != nil {
-		return "", fmt.Errorf("join %s paths failed: %w", strings.Join([]string{req.PathPrefix, route.pattern}, ","), err)
+		return zero, fmt.Errorf("join %s paths failed: %w", strings.Join([]string{req.PathPrefix, route.pattern}, ","), err)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

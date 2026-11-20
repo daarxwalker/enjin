@@ -3,6 +3,7 @@ package google
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -44,7 +45,11 @@ type fakeGoogleAPI struct {
 }
 
 func (a *fakeGoogleAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("read request body failed: %v", err), http.StatusBadRequest)
+		return
+	}
 	authorization := r.Header.Get("Authorization")
 	a.requests = append(a.requests, recordedRequest{authorization: authorization, body: string(body)})
 	if a.rejected[authorization] {
@@ -73,7 +78,9 @@ func doGoogleTestRequest(t *testing.T, client *http.Client, method, url, body st
 	if err != nil {
 		t.Fatalf("do request failed: %v", err)
 	}
-	_ = res.Body.Close()
+	if closeErr := res.Body.Close(); closeErr != nil {
+		t.Fatalf("close response body failed: %v", closeErr)
+	}
 	return res.StatusCode
 }
 
@@ -172,7 +179,9 @@ func TestGoogleTransport_FetchesTokenWithRequestContext(t *testing.T) {
 	res, err := client.Do(req)
 
 	if res != nil {
-		_ = res.Body.Close()
+		if closeErr := res.Body.Close(); closeErr != nil {
+			t.Fatalf("close response body failed: %v", closeErr)
+		}
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context canceled, got %v", err)

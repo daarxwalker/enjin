@@ -85,11 +85,25 @@ func (d *Driver) Put(ctx context.Context, key string, body io.Reader, size int64
 	return nil
 }
 
+// Delete of a missing key succeeds. Some S3-compatible stores (SeaweedFS)
+// fail to remove a key that is a directory prefix of other objects; Delete
+// then checks that no such object exists and treats it as already gone.
 func (d *Driver) Delete(ctx context.Context, key string) error {
-	if err := d.client.RemoveObject(ctx, d.bucket, key, miniosdk.RemoveObjectOptions{}); err != nil {
-		return fmt.Errorf("remove object %q failed: %w", key, err)
+	removeErr := d.client.RemoveObject(ctx, d.bucket, key, miniosdk.RemoveObjectOptions{})
+	if removeErr == nil {
+		return nil
 	}
-	return nil
+	_, statErr := d.client.StatObject(ctx, d.bucket, key, miniosdk.StatObjectOptions{})
+	if d.isErrNoSuchKey(statErr) {
+		return nil
+	}
+	if statErr != nil {
+		return errors.Join(
+			fmt.Errorf("remove object %q failed: %w", key, removeErr),
+			fmt.Errorf("stat object %q after failed removal failed: %w", key, statErr),
+		)
+	}
+	return fmt.Errorf("remove object %q failed: %w", key, removeErr)
 }
 
 func (d *Driver) isErrNoSuchKey(err error) bool {

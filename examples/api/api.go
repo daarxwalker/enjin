@@ -62,6 +62,7 @@ func newAPI(ctx context.Context, rdb *redis.Client, logger *slog.Logger, options
 		append(
 			[]app.Option{
 				app.WithContext(ctx),
+				app.WithLogger(logger),
 				app.WithRouter(app.NewRouter(chi.NewRouter(), handler)),
 				app.WithSpec(spec),
 				app.WithCORS(cors.Options{

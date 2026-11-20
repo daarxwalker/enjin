@@ -11,11 +11,15 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"math/big"
 	"net"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -29,6 +33,7 @@ type smtpTestServer struct {
 	config    smtpTestConfig
 	commands  []string
 	auth      []string
+	failures  []error
 	data      string
 	encrypted bool
 	mu        sync.Mutex
@@ -250,7 +255,12 @@ func newSMTPTestServer(t *testing.T, config smtpTestConfig) *smtpTestServer {
 	}
 	srv := &smtpTestServer{listener: listener, config: config}
 	t.Cleanup(func() {
-		_ = listener.Close()
+		srv.mu.Lock()
+		defer srv.mu.Unlock()
+		require.NoError(t, errors.Join(srv.failures...))
+	})
+	t.Cleanup(func() {
+		require.NoError(t, listener.Close())
 	})
 	go srv.accept()
 	return srv
@@ -288,62 +298,99 @@ func (s *smtpTestServer) port(t *testing.T) string {
 	return port
 }
 
+// accept serves one client. The tests hang up early on purpose (timeouts,
+// refused auth), so a hang-up only ends the session; any other failure is
+// recorded and fails the test in its cleanup.
 func (s *smtpTestServer) accept() {
 	conn, err := s.listener.Accept()
 	if err != nil {
+		if !s.isHangUp(err) {
+			s.recordFailure(fmt.Errorf("accept test connection failed: %w", err))
+		}
 		return
 	}
 	defer func() {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil && !s.isHangUp(closeErr) {
+			s.recordFailure(fmt.Errorf("close test connection failed: %w", closeErr))
+		}
 	}()
 	if s.config.silent {
-		_, _ = bufio.NewReader(conn).ReadString('\n')
+		if _, readErr := bufio.NewReader(conn).ReadString('\n'); readErr != nil && !s.isHangUp(readErr) {
+			s.recordFailure(fmt.Errorf("wait for the client to hang up failed: %w", readErr))
+		}
 		return
 	}
 	s.serve(conn)
 }
 
+func (s *smtpTestServer) reply(conn net.Conn, line string) bool {
+	if _, err := conn.Write([]byte(line)); err != nil {
+		if !s.isHangUp(err) {
+			s.recordFailure(fmt.Errorf("write %q failed: %w", line, err))
+		}
+		return false
+	}
+	return true
+}
+
+func (s *smtpTestServer) isHangUp(err error) bool {
+	return errors.Is(err, io.EOF) ||
+		errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EPIPE)
+}
+
+func (s *smtpTestServer) recordFailure(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures = append(s.failures, err)
+}
+
 func (s *smtpTestServer) serve(conn net.Conn) {
 	reader := bufio.NewReader(conn)
-	_, _ = conn.Write([]byte("220 test\r\n"))
+	if !s.reply(conn, "220 test\r\n") {
+		return
+	}
 	for {
-		line, readErr := reader.ReadString('\n')
-		if readErr != nil {
+		line, ok := s.readLine(reader)
+		if !ok {
 			return
 		}
 		command := strings.TrimRight(line, "\r\n")
 		s.mu.Lock()
 		s.commands = append(s.commands, command)
 		s.mu.Unlock()
+		var replied bool
 		switch {
 		case strings.HasPrefix(command, "EHLO"):
-			_, _ = conn.Write([]byte(s.createEHLOResponse()))
+			replied = s.reply(conn, s.createEHLOResponse())
 		case command == "STARTTLS":
-			_, _ = conn.Write([]byte("220 ready\r\n"))
+			replied = s.reply(conn, "220 ready\r\n")
 			conn = tls.Server(conn, s.config.startTLS)
 			reader = bufio.NewReader(conn)
 		case command == "AUTH LOGIN":
-			s.readLogin(conn, reader)
+			replied = s.readLogin(conn, reader)
 		case strings.HasPrefix(command, "AUTH "):
 			s.recordAuth(strings.Fields(command)[2])
-			_, _ = conn.Write([]byte("235 ok\r\n"))
+			replied = s.reply(conn, "235 ok\r\n")
 		case strings.HasPrefix(command, "MAIL"):
 			_, encrypted := conn.(*tls.Conn)
 			s.mu.Lock()
 			s.encrypted = encrypted
 			s.mu.Unlock()
-			_, _ = conn.Write([]byte("250 ok\r\n"))
+			replied = s.reply(conn, "250 ok\r\n")
 		case command == "DATA":
-			_, _ = conn.Write([]byte("354 go\r\n"))
-			s.readData(reader)
-			_, _ = conn.Write([]byte("250 ok\r\n"))
+			replied = s.reply(conn, "354 go\r\n") && s.readData(reader) && s.reply(conn, "250 ok\r\n")
 		case command == "QUIT":
 			if !s.config.failQuit {
-				_, _ = conn.Write([]byte("221 bye\r\n"))
+				s.reply(conn, "221 bye\r\n")
 			}
 			return
 		default:
-			_, _ = conn.Write([]byte("250 ok\r\n"))
+			replied = s.reply(conn, "250 ok\r\n")
+		}
+		if !replied {
+			return
 		}
 	}
 }
@@ -363,30 +410,39 @@ func (s *smtpTestServer) createEHLOResponse() string {
 	return response.String()
 }
 
-func (s *smtpTestServer) readLogin(conn net.Conn, reader *bufio.Reader) {
+func (s *smtpTestServer) readLogin(conn net.Conn, reader *bufio.Reader) bool {
 	for _, prompt := range []string{"Username:", "Password:"} {
-		_, _ = conn.Write([]byte("334 " + base64.StdEncoding.EncodeToString([]byte(prompt)) + "\r\n"))
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return
+		if !s.reply(conn, "334 "+base64.StdEncoding.EncodeToString([]byte(prompt))+"\r\n") {
+			return false
+		}
+		line, ok := s.readLine(reader)
+		if !ok {
+			return false
 		}
 		s.recordAuth(strings.TrimRight(line, "\r\n"))
 	}
-	_, _ = conn.Write([]byte("235 ok\r\n"))
+	return s.reply(conn, "235 ok\r\n")
 }
 
 func (s *smtpTestServer) recordAuth(encoded string) {
-	decoded, _ := base64.StdEncoding.DecodeString(encoded)
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		s.recordFailure(fmt.Errorf("decode auth %q failed: %w", encoded, err))
+		return
+	}
 	s.mu.Lock()
 	s.auth = append(s.auth, string(decoded))
 	s.mu.Unlock()
 }
 
-func (s *smtpTestServer) readData(reader *bufio.Reader) {
+func (s *smtpTestServer) readData(reader *bufio.Reader) bool {
 	var data strings.Builder
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil || line == ".\r\n" {
+		line, ok := s.readLine(reader)
+		if !ok {
+			return false
+		}
+		if line == ".\r\n" {
 			break
 		}
 		data.WriteString(line)
@@ -394,4 +450,16 @@ func (s *smtpTestServer) readData(reader *bufio.Reader) {
 	s.mu.Lock()
 	s.data = data.String()
 	s.mu.Unlock()
+	return true
+}
+
+func (s *smtpTestServer) readLine(reader *bufio.Reader) (string, bool) {
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		if !s.isHangUp(err) {
+			s.recordFailure(fmt.Errorf("read command failed: %w", err))
+		}
+		return "", false
+	}
+	return line, true
 }
