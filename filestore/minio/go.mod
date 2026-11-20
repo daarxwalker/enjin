@@ -3,10 +3,9 @@ module github.com/daarxwalker/enjin/filestore/minio
 go 1.27
 
 require (
-	github.com/daarxwalker/enjin v0.1.5
-	github.com/daarxwalker/enjin/enjintest v0.1.5
+	github.com/daarxwalker/enjin v0.2.0
+	github.com/daarxwalker/enjin/enjintest v0.2.0
 	github.com/minio/minio-go/v7 v7.3.0
-	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -70,6 +69,7 @@ require (
 	github.com/sethvargo/go-retry v0.4.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/testcontainers/testcontainers-go v0.43.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/valkey v0.43.0 // indirect
