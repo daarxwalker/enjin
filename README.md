@@ -480,10 +480,13 @@ tm := theme.NewManager(theme.WithDefaultTheme(theme.Dark))
 
 theme.From(ctx)
 theme.IsDark(ctx)
+theme.IsSystem(ctx)
 theme.Attach(w, r, theme.Light)
 ```
 
-- `?theme=dark` sets the cookie and redirects without the parameter.
+- Values: `theme.Light`, `theme.Dark`, `theme.System` (default `theme.Light`).
+- `theme.System` leaves the choice to the browser: render `data-theme="system"` and switch with `@media (prefers-color-scheme: dark)`. `IsDark` is false for it, and the Turnstile widget gets `auto`.
+- `?theme=dark` (or `light`, `system`) sets the cookie and redirects without the parameter.
 
 ## web/consent
 

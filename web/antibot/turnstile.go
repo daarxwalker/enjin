@@ -30,6 +30,9 @@ const (
 	turnstileFormValueName = "cf-turnstile-response"
 )
 
+// Turnstile calls the theme that follows the browser "auto".
+const turnstileSystemTheme = "auto"
+
 const (
 	turnstileScriptURL            = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
 	turnstileVerificationEndpoint = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -46,12 +49,10 @@ func NewTurnstileDriver(client *http.Client, siteKey, secret string) *TurnstileD
 }
 
 func (m *TurnstileDriver) CreateWidget(ctx context.Context) templ.Component {
-	var currentTheme string
 	ctxTheme := theme.From(ctx)
-	if ctxTheme == "" {
-		currentTheme = theme.Light.String()
-	} else {
-		currentTheme = ctxTheme.String()
+	currentTheme := ctxTheme.String()
+	if ctxTheme == theme.System {
+		currentTheme = turnstileSystemTheme
 	}
 	return TurnstileWidget(m.siteKey, currentTheme) //nolint:contextcheck // templ passes ctx to Render
 }

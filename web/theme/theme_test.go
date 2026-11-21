@@ -24,6 +24,8 @@ func TestTheme(t *testing.T) {
 			}{
 				{name: "no cookie", want: theme.Light},
 				{name: "dark cookie", cookie: "dark", want: theme.Dark},
+				{name: "system cookie", cookie: "system", want: theme.System},
+				{name: "system default", options: []theme.Option{theme.WithDefaultTheme(theme.System)}, want: theme.System},
 				{name: "invalid cookie", cookie: "<script>", want: theme.Light},
 				{name: "configured default", options: []theme.Option{theme.WithDefaultTheme(theme.Dark)}, want: theme.Dark},
 				{name: "invalid default ignored", options: []theme.Option{theme.WithDefaultTheme("blue")}, want: theme.Light},
@@ -58,6 +60,7 @@ func TestTheme(t *testing.T) {
 				location string
 			}{
 				{name: "dark", target: "/page?theme=dark&tab=2", want: theme.Dark, location: "/page?tab=2"},
+				{name: "system", target: "/page?theme=system", want: theme.System, location: "/page"},
 				{name: "invalid falls back to default", target: "/page?theme=blue", options: []theme.Option{theme.WithDefaultTheme(theme.Dark)}, want: theme.Dark, location: "/page"},
 				{name: "foreign host", target: "//evil.com?theme=dark", want: theme.Dark, location: "/"},
 				{name: "escaped backslash stays local", target: "/%5Cevil.com?theme=dark", want: theme.Dark, location: "/%5Cevil.com"},
@@ -114,6 +117,7 @@ func TestTheme(t *testing.T) {
 				want  theme.Value
 			}{
 				{name: "valid", value: theme.Dark, want: theme.Dark},
+				{name: "system", value: theme.System, want: theme.System},
 				{name: "invalid ignored", value: "blue", want: theme.Light},
 			}
 			for _, tt := range tests {
@@ -144,6 +148,29 @@ func TestTheme(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 			require.Equal(t, theme.Light, theme.From(r.Context()))
 			require.False(t, theme.IsDark(r.Context()))
+			require.False(t, theme.IsSystem(r.Context()))
+		},
+	)
+
+	t.Run(
+		"system is neither dark nor light", func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			r.AddCookie(&http.Cookie{Name: theme.CookieName, Value: "system"})
+			var (
+				dark   bool
+				system bool
+			)
+			theme.NewManager().Middleware(
+				http.HandlerFunc(
+					func(_ http.ResponseWriter, r *http.Request) {
+						ctx := r.Context()
+						dark = theme.IsDark(ctx)
+						system = theme.IsSystem(ctx)
+					},
+				),
+			).ServeHTTP(httptest.NewRecorder(), r)
+			require.False(t, dark)
+			require.True(t, system)
 		},
 	)
 }

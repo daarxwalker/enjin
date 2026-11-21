@@ -1,2 +1,2 @@
-// Package theme keeps the light or dark theme in a cookie.
+// Package theme keeps the light, dark or system theme in a cookie.
 package theme

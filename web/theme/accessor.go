@@ -4,9 +4,15 @@ import (
 	"context"
 )
 
+// IsDark is false for System too: only the browser knows which scheme it picks.
 func IsDark(ctx context.Context) bool {
 	v := From(ctx)
 	return v == Dark
+}
+
+func IsSystem(ctx context.Context) bool {
+	v := From(ctx)
+	return v == System
 }
 
 func From(ctx context.Context) Value {
