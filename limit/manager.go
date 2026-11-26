@@ -16,12 +16,13 @@ import (
 var ErrNotLoaded = errors.New("limit not loaded")
 
 type Manager struct {
-	cache Counter
-	log   *slog.Logger
-	key   ctxKeyType
-	name  string
-	ttl   time.Duration
-	max   int
+	cache    Counter
+	log      *slog.Logger
+	key      ctxKeyType
+	name     string
+	ttl      time.Duration
+	max      int
+	sessions bool
 }
 
 func NewLimiter(
@@ -103,7 +104,7 @@ func (m *Manager) Load(next http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			if session.Exists(ctx) {
+			if m.skips(ctx) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -116,7 +117,7 @@ func (m *Manager) Verify(next http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			if session.Exists(ctx) {
+			if m.skips(ctx) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -189,4 +190,8 @@ func (m *Manager) stateFrom(ctx context.Context) (state, bool) {
 	}
 	s, ok := v.(state)
 	return s, ok
+}
+
+func (m *Manager) skips(ctx context.Context) bool {
+	return !m.sessions && session.Exists(ctx)
 }

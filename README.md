@@ -622,7 +622,8 @@ limiter.Current(ctx)
 limiter.ResetIn(ctx)
 ```
 
-- `Verify` answers `429` over the limit; skipped for logged-in sessions.
+- `Verify` answers `429` over the limit.
+- `Load` and `Verify` skip requests with a session; `limit.WithSessions()` counts them too (e.g. a code that a signed-in user may guess as well).
 
 ## lock
 

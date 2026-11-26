@@ -12,6 +12,7 @@ import (
 	"github.com/daarxwalker/enjin/infra/cache"
 	"github.com/daarxwalker/enjin/internal/testredis"
 	"github.com/daarxwalker/enjin/limit"
+	"github.com/daarxwalker/enjin/session"
 
 	"github.com/stretchr/testify/require"
 )
@@ -77,6 +78,38 @@ func TestRedisLimiter(t *testing.T) {
 			serve(limiter.Load, "192.0.2.4:1000", step)
 			serve(limiter.Load, "192.0.2.4:1000", step)
 			require.Equal(t, []string{"consumed", "blocked", "reverted", "consumed"}, steps)
+		},
+	)
+
+	t.Run(
+		"session skips the limit unless sessions are counted", func(t *testing.T) {
+			store := session.NewStore(counter, session.WithBearer())
+			sessionToken, err := store.Seed(ctx, session.WithID("user"))
+			require.NoError(t, err)
+			withSession := func(limiter *limit.Manager) func(http.Handler) http.Handler {
+				return func(next http.Handler) http.Handler {
+					handler := store.Middleware(limiter.Load(next))
+					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						r.Header.Set("Authorization", "Bearer "+sessionToken)
+						handler.ServeHTTP(w, r)
+					})
+				}
+			}
+			skipping := limit.NewLimiter(counter, "skipping", 1)
+			serve(withSession(skipping), "192.0.2.6:1000", func(ctx context.Context) {
+				_, consumeErr := skipping.Consume(ctx)
+				require.ErrorIs(t, consumeErr, limit.ErrNotLoaded)
+			})
+			counting := limit.NewLimiter(counter, "counting", 1, limit.WithSessions())
+			var allowed []bool
+			step := func(ctx context.Context) {
+				ok, consumeErr := counting.Consume(ctx)
+				require.NoError(t, consumeErr)
+				allowed = append(allowed, ok)
+			}
+			serve(withSession(counting), "192.0.2.6:1000", step)
+			serve(withSession(counting), "192.0.2.6:1000", step)
+			require.Equal(t, []bool{true, false}, allowed)
 		},
 	)
 

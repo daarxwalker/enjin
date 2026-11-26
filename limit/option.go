@@ -20,3 +20,10 @@ func WithTTL(ttl time.Duration) Option {
 		m.ttl = ttl
 	}
 }
+
+// WithSessions counts requests with a session too; by default Load and Verify skip them.
+func WithSessions() Option {
+	return func(m *Manager) {
+		m.sessions = true
+	}
+}
