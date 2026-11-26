@@ -33,6 +33,9 @@ func NewPostgres(ctx context.Context, t testing.TB, options ...Option) *pgxpool.
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
 		testcontainers.WithWaitStrategy(
+			// The image starts a temporary server for initdb first and then restarts, so the port
+			// may already be open while the first server is shutting down.
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
 			wait.ForListeningPort(strconv.Itoa(cfg.port)+"/tcp"),
 		),
 	)
